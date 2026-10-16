@@ -356,34 +356,52 @@ def parse():
 
 @app.route('/api/lyrics')
 def lyrics():
-    artist = request.args.get('artist', '')
-    title = request.args.get('title', '')
-    if not artist or not title:
+    artist = request.args.get('artist', '').strip()
+    title = request.args.get('title', '').strip()
+    duration = request.args.get('duration', '').strip()
+    if not title:
         return jsonify({'error': 'Thiếu thông tin'}), 400
+    hdr = {'User-Agent': 'NovaMusic/1.0 (https://github.com/megumi367/nova-music)'}
+
+    # 1. lrclib.net /get — exact match (có synced)
     try:
-        r = requests.get(f"https://api.lyrics.ovh/v1/{artist}/{title}", timeout=6)
+        params = {'artist_name': artist, 'track_name': title}
+        if duration:
+            try: params['duration'] = int(float(duration))
+            except: pass
+        r = requests.get('https://lrclib.net/api/get', params=params, headers=hdr, timeout=8)
         if r.status_code == 200:
-            return jsonify(r.json())
-        return jsonify({'error': 'Không có lời'}), 404
-    except:
-        return jsonify({'error': 'Không có lời'}), 404
+            d = r.json()
+            if d.get('syncedLyrics'):
+                return jsonify({'lyrics': d['syncedLyrics'], 'synced': True, 'source': 'lrclib'})
+            if d.get('plainLyrics'):
+                return jsonify({'lyrics': d['plainLyrics'], 'synced': False, 'source': 'lrclib'})
+    except Exception:
+        pass
 
+    # 2. lrclib.net /search — fuzzy
+    try:
+        q = f"{artist} {title}".strip()
+        r = requests.get('https://lrclib.net/api/search', params={'q': q}, headers=hdr, timeout=8)
+        if r.status_code == 200:
+            for item in (r.json() or [])[:5]:
+                if item.get('syncedLyrics'):
+                    return jsonify({'lyrics': item['syncedLyrics'], 'synced': True, 'source': 'lrclib-search'})
+                if item.get('plainLyrics'):
+                    return jsonify({'lyrics': item['plainLyrics'], 'synced': False, 'source': 'lrclib-search'})
+    except Exception:
+        pass
 
-def rewrite_m3u8(c, base):
-    out = []
-    for line in c.split('\n'):
-        s = line.strip()
-        if not s:
-            out.append(line); continue
-        if s.startswith('#'):
-            if 'URI="' in s:
-                def repl(m):
-                    return f'URI="/hls_proxy?t={b64e(urllib.parse.urljoin(base, m.group(1)))}"'
-                s = re.sub(r'URI="([^"]+)"', repl, s)
-            out.append(s)
-        else:
-            out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
-    return '\n'.join(out)
+    # 3. lyrics.ovh — fallback
+    if artist:
+        try:
+            r = requests.get(f"https://api.lyrics.ovh/v1/{artist}/{title}", headers=hdr, timeout=6)
+            if r.status_code == 200 and (r.json() or {}).get('lyrics'):
+                return jsonify({'lyrics': r.json()['lyrics'], 'synced': False, 'source': 'lyrics.ovh'})
+        except Exception:
+            pass
+
+    return jsonify({'error': 'Không có lời'}), 404
 
 
 @app.route('/hls_proxy')
