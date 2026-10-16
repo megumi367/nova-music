@@ -600,6 +600,28 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 @media(max-width:900px) and (orientation:landscape){.player{height:80px;bottom:8px;padding:0 16px}.pb-art{width:52px;height:52px}.pb-prog{display:none}.bnav{display:none}body{padding-bottom:96px}.app{height:calc(100vh - 96px)}}
 @media(hover:none){.tracks.grid .track:hover{transform:none}.track:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}.meteor,.aurora,.cursor-glow,.confetti{display:none!important}}
+.speed-btn{position:relative;font-size:10px!important;font-weight:800!important}
+.speed-btn .spd-val{font-family:monospace;color:var(--accent)}
+.eq-panel{position:fixed;bottom:116px;right:22px;width:280px;background:rgba(15,10,32,.98);backdrop-filter:blur(30px);border:1px solid var(--br2);border-radius:18px;padding:16px;z-index:150;box-shadow:0 20px 60px rgba(0,0,0,.7);opacity:0;pointer-events:none;transform:translateY(10px);transition:all .3s var(--spring)}
+.eq-panel.on{opacity:1;pointer-events:auto;transform:translateY(0)}
+.eq-panel::before{content:'';position:absolute;top:0;left:16px;right:16px;height:2px;background:var(--grad);border-radius:2px}
+.eq-hd{font-size:12px;font-weight:800;color:var(--tx);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.eq-hd-x{width:26px;height:26px;border-radius:8px;background:var(--s2);color:var(--tx2);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all .2s}
+.eq-hd-x:hover{background:var(--grad);color:#fff}
+.eq-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.eq-row-lbl{font-size:11px;font-weight:700;color:var(--tx3);width:52px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px}
+.eq-slider{flex:1;-webkit-appearance:none;appearance:none;height:4px;background:var(--s3);border-radius:2px;outline:none;cursor:pointer}
+.eq-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px var(--accent-soft)}
+.eq-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+.eq-val{font-size:10.5px;font-weight:700;color:var(--tx);width:36px;text-align:right;font-family:monospace;flex-shrink:0}
+.eq-presets{display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--br)}
+.eq-preset{flex:1;padding:8px 4px;border-radius:9px;background:var(--s2);border:1px solid var(--br);color:var(--tx2);font-size:10px;font-weight:700;text-transform:uppercase;transition:all .2s}
+.eq-preset.on{background:var(--grad);color:#fff;border-color:transparent}
+.speed-pop{position:fixed;bottom:116px;right:22px;background:rgba(15,10,32,.98);backdrop-filter:blur(30px);border:1px solid var(--br2);border-radius:14px;padding:8px;z-index:150;display:flex;flex-direction:column;gap:2px;box-shadow:0 20px 60px rgba(0,0,0,.7);opacity:0;pointer-events:none;transform:translateY(10px);transition:all .25s var(--spring);min-width:100px}
+.speed-pop.on{opacity:1;pointer-events:auto;transform:translateY(0)}
+.speed-item{padding:8px 14px;border-radius:9px;font-size:12px;font-weight:700;color:var(--tx2);text-align:center;transition:all .15s;cursor:pointer}
+.speed-item.on{background:var(--accent-soft);color:var(--accent)}
+@media(max-width:768px){.eq-panel,.speed-pop{bottom:184px;right:12px;left:12px;width:auto}.speed-pop{left:auto;width:120px}}
 </style>
 </head>
 <body>
@@ -807,6 +829,8 @@ body{padding:0;padding-bottom:180px;cursor:auto}
   </div>
   <div class="pb-r">
     <button class="pc" onclick="toggleFavCurrent()" id="pbFav"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
+    <button class="pc speed-btn" onclick="toggleSpeedPop(event)" title="Tốc độ"><span class="spd-val" id="speedVal">1x</span></button>
+    <button class="pc" onclick="toggleEQPanel(event)" title="Equalizer"><svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg></button>
     <button class="pc" onclick="openVideo()"><svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
     <button class="pc" onclick="openInfoModal()"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-8C6.48 3 2 7.48 2 12s4.48 9 10 9 10-4.48 10-9-4.48-9-10-9z"/></svg></button>
     <div class="vol">
@@ -903,9 +927,29 @@ body{padding:0;padding-bottom:180px;cursor:auto}
   <button class="bn" data-nav="download" onclick="navTo('download')"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg><span>Tải</span></button>
 </nav>
 
+<div class="speed-pop" id="speedPop">
+  <div class="speed-item" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</div>
+  <div class="speed-item" data-speed="0.75" onclick="setSpeed(0.75)">0.75x</div>
+  <div class="speed-item on" data-speed="1" onclick="setSpeed(1)">1x</div>
+  <div class="speed-item" data-speed="1.25" onclick="setSpeed(1.25)">1.25x</div>
+  <div class="speed-item" data-speed="1.5" onclick="setSpeed(1.5)">1.5x</div>
+  <div class="speed-item" data-speed="2" onclick="setSpeed(2)">2x</div>
+</div>
+<div class="eq-panel" id="eqPanel">
+  <div class="eq-hd"><span>🎚️ Equalizer</span><div class="eq-hd-x" onclick="toggleEQPanel(event)">✕</div></div>
+  <div class="eq-row"><span class="eq-row-lbl">Bass</span><input type="range" class="eq-slider" id="eqBass" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqBassVal">0dB</span></div>
+  <div class="eq-row"><span class="eq-row-lbl">Mid</span><input type="range" class="eq-slider" id="eqMid" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqMidVal">0dB</span></div>
+  <div class="eq-row"><span class="eq-row-lbl">Treble</span><input type="range" class="eq-slider" id="eqTreble" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqTrebleVal">0dB</span></div>
+  <div class="eq-presets">
+    <button class="eq-preset on" onclick="applyEQPreset('flat')">Flat</button>
+    <button class="eq-preset" onclick="applyEQPreset('bass')">Bass</button>
+    <button class="eq-preset" onclick="applyEQPreset('vocal')">Vocal</button>
+    <button class="eq-preset" onclick="applyEQPreset('loud')">Loud</button>
+  </div>
+</div>
+
 <div class="toasts" id="toasts"></div>
-<audio id="audio" preload="metadata"></audio>
-<script>
+<audio id="audio" preload="metadata"></audio><script>
 (function(){const cores=navigator.hardwareConcurrency||2,mem=navigator.deviceMemory||4,isM=window.innerWidth<768;if(cores<=2||mem<=2||(isM&&cores<=4))document.documentElement.classList.add('low-end');})();
 (function(){const w=document.getElementById('loadingStars');for(let i=0;i<80;i++){const s=document.createElement('div');s.className='loading-star';const sz=Math.random()*2+.5;s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s`;w.appendChild(s);}})();
 window.addEventListener('load',()=>{setTimeout(()=>{const ls=document.getElementById('loadingScreen');ls.classList.add('hide');setTimeout(()=>ls.remove(),900);},1600);});
@@ -969,6 +1013,49 @@ function openPlaylist(id){const pl=S.playlists.find(p=>p.id===id);if(!pl)return;
 function addToQueue(t){if(S.queue.some(q=>q.id===t.id))return toast('Đã có trong hàng đợi');S.queue.push(t);save();renderQueue();toast('Đã thêm vào hàng đợi','ok');if(PARTY.code)fetch('/api/party/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track:t})}).catch(()=>{});}
 function renderQueue(){$('qCount').textContent=S.queue.length;const el=$('queueList');if(!S.queue.length){el.innerHTML='<div class="empty" style="padding:30px"><div class="empty-ic">📭</div><div class="empty-t">Hàng đợi trống</div></div>';return;}el.innerHTML=S.queue.map(t=>`<div class="q-item${t.id===S.curId?' on':''}" data-id="${esc(t.id)}"><img class="q-art" src="${esc(t.thumb||'')}" onerror="this.style.background='var(--s3)'"><div class="q-i"><div class="q-t">${esc(t.title)}</div><div class="q-s">${esc(t.channel||'')}</div></div><button class="q-del" onclick="event.stopPropagation();removeFromQueue('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>`).join('');el.querySelectorAll('.q-item').forEach(it=>{it.onclick=()=>{const t=S.queue.find(q=>q.id===it.dataset.id);if(t)playTrack(t.id,t);};});}
 function removeFromQueue(id){S.queue=S.queue.filter(q=>q.id!==id);save();renderQueue();}
+const SPEED_KEY='nv_speed';
+function initSpeed(){const s=parseFloat(localStorage.getItem(SPEED_KEY)||'1');audio.playbackRate=s;updateSpeedUI(s);}
+function setSpeed(s){audio.playbackRate=s;localStorage.setItem(SPEED_KEY,s);updateSpeedUI(s);$('speedPop').classList.remove('on');toast('⚡ Tốc độ: '+s+'x','ok');}
+function updateSpeedUI(s){const v=$('speedVal');if(v)v.textContent=s+'x';document.querySelectorAll('.speed-item').forEach(el=>el.classList.toggle('on',parseFloat(el.dataset.speed)===s));}
+function toggleSpeedPop(e){e?.stopPropagation();$('speedPop').classList.toggle('on');$('eqPanel').classList.remove('on');}
+let audioCtx=null,bassFilter=null,midFilter=null,trebleFilter=null,audioSource=null;
+const EQ_KEY='nv_eq';
+function initEQ(){
+  try{
+    if(audioCtx)return;
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    audioSource=audioCtx.createMediaElementSource(audio);
+    bassFilter=audioCtx.createBiquadFilter();bassFilter.type='lowshelf';bassFilter.frequency.value=200;
+    midFilter=audioCtx.createBiquadFilter();midFilter.type='peaking';midFilter.frequency.value=1000;midFilter.Q.value=1;
+    trebleFilter=audioCtx.createBiquadFilter();trebleFilter.type='highshelf';trebleFilter.frequency.value=3000;
+    audioSource.connect(bassFilter);bassFilter.connect(midFilter);midFilter.connect(trebleFilter);trebleFilter.connect(audioCtx.destination);
+    const saved=JSON.parse(localStorage.getItem(EQ_KEY)||'{"bass":0,"mid":0,"treble":0,"preset":"flat"}');
+    applyEQ(saved.bass,saved.mid,saved.treble,true);
+    if(saved.preset)document.querySelectorAll('.eq-preset').forEach(p=>p.classList.toggle('on',p.textContent.toLowerCase()===saved.preset));
+  }catch(e){console.warn('EQ init failed:',e);}
+}
+function applyEQ(bass,mid,treble,noToast){
+  if(!bassFilter)initEQ();if(!bassFilter)return;
+  bassFilter.gain.value=bass;midFilter.gain.value=mid;trebleFilter.gain.value=treble;
+  $('eqBass').value=bass;$('eqMid').value=mid;$('eqTreble').value=treble;
+  $('eqBassVal').textContent=bass+'dB';$('eqMidVal').textContent=mid+'dB';$('eqTrebleVal').textContent=treble+'dB';
+  if(!noToast)localStorage.setItem(EQ_KEY,JSON.stringify({bass,mid,treble,preset:''}));
+}
+function applyEQPreset(name){
+  const presets={flat:{b:0,m:0,t:0},bass:{b:10,m:-2,t:-1},vocal:{b:-2,m:6,t:3},loud:{b:6,m:2,t:6}};
+  const p=presets[name]||presets.flat;
+  applyEQ(p.b,p.m,p.t,true);
+  localStorage.setItem(EQ_KEY,JSON.stringify({bass:p.b,mid:p.m,treble:p.t,preset:name}));
+  document.querySelectorAll('.eq-preset').forEach(el=>el.classList.toggle('on',el.textContent.toLowerCase()===name));
+  toast('🎚️ EQ: '+name.toUpperCase(),'ok');
+}
+function toggleEQPanel(e){e?.stopPropagation();$('eqPanel').classList.toggle('on');$('speedPop').classList.remove('on');if($('eqPanel').classList.contains('on'))initEQ();}
+document.addEventListener('DOMContentLoaded',()=>{
+  ['eqBass','eqMid','eqTreble'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',()=>{applyEQ(parseFloat($('eqBass').value),parseFloat($('eqMid').value),parseFloat($('eqTreble').value));document.querySelectorAll('.eq-preset').forEach(p=>p.classList.remove('on'));});});
+});
+document.addEventListener('click',e=>{if(!e.target.closest('.speed-pop,.eq-panel,.speed-btn,.pc[onclick*="toggleEQPanel"]')){$('speedPop')?.classList.remove('on');$('eqPanel')?.classList.remove('on');}});
+document.addEventListener('touchstart',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();},{passive:true});
+document.addEventListener('click',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();},{passive:true});
 let hlsInstance=null;
 const audio=$('audio');
 audio.volume=S.volume;
@@ -1086,8 +1173,9 @@ setTimeout(()=>{$('favBadge').textContent=S.favorites.length;$('plBadge').textCo
 renderHome();
 renderPlaylists();
 renderQueue();
+initSpeed();
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'),1400);
 console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'}`);
 </script>
 </body>
-   </html>
+  </html>
