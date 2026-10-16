@@ -5,9 +5,21 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 url_cache = {}
 tasks = {}
-COOKIES_FILE = None
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+# ==================== COOKIES (từ env Render) ====================
+COOKIES_FILE = None
+_cookies_env = os.environ.get('NOVA_COOKIES')
+if _cookies_env:
+    try:
+        COOKIES_FILE = '/tmp/cookies.txt'
+        with open(COOKIES_FILE, 'w') as f:
+            f.write(_cookies_env)
+        print(f"[cookies] ✅ Đã ghi cookies ({len(_cookies_env)} bytes)")
+    except Exception as e:
+        print(f"[cookies] ⚠️ Không ghi được: {e}")
+        COOKIES_FILE = None
 
 FFMPEG_OK = False
 try:
@@ -27,7 +39,8 @@ def _get_lock(key):
 
 def base_opts():
     o = {'quiet': True, 'no_warnings': True, 'nocheckcertificate': True}
-    if COOKIES_FILE: o['cookiefile'] = COOKIES_FILE
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+        o['cookiefile'] = COOKIES_FILE
     return o
 
 def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
@@ -56,7 +69,6 @@ def get_stream_url(vid, mode='audio', source='youtube'):
 
     lock = _get_lock(key)
     with lock:
-        # double-check sau khi acquire lock
         c = url_cache.get(key)
         if c and time.time() - c['ts'] < 7200:
             return c['data']
@@ -148,6 +160,11 @@ def sc_search(q, limit=20):
         out.append({'id':u,'url':u,'title':e.get('title') or '','duration':dur,
                     'thumb':thumb,'channel':e.get('uploader') or e.get('channel') or '','source':'soundcloud'})
     return out
+
+# ==================== HEALTH CHECK ====================
+@app.route('/api/ping')
+def ping():
+    return jsonify({'ok': True, 'v': 'v17-studio'})
 
 @app.route('/')
 def index(): return send_from_directory('templates','index.html')
@@ -533,6 +550,7 @@ def debug():
         'version': 'v17-studio',
         'yt_dlp': y.version.__version__,
         'ffmpeg': FFMPEG_OK,
+        'cookies': bool(COOKIES_FILE and os.path.exists(COOKIES_FILE)),
         'party_rooms': len(PARTY_ROOMS),
         'url_cache': len(url_cache),
         'tasks': len(tasks),
@@ -540,13 +558,12 @@ def debug():
 
 if __name__ == '__main__':
     import yt_dlp as y
+    port = int(os.environ.get('PORT', 5000))
     print(f"\n╔════════════════════════════════════════╗")
     print(f"║  ✨ Nova v17 · Studio                  ║")
     print(f"╚════════════════════════════════════════╝")
     print(f"   yt-dlp:     {y.version.__version__}")
-    print(f"   ffmpeg:     {'✅ OK' if FFMPEG_OK else '⚠️  Thiếu (chỉ audio m4a)'}")
-    print(f"   Party:      ✅ HTTP polling")
-    print(f"   Auto-next:  ✅ watchdog + prefetch + race-guard")
-    print(f"   UI:         ✅ Studio redesign")
-    print(f"   Debug:      http://localhost:5000/api/debug\n")
-    app.run(debug=True, port=5000, threaded=True, host='0.0.0.0')
+    print(f"   ffmpeg:     {'✅ OK' if FFMPEG_OK else '⚠️  Thiếu'}")
+    print(f"   cookies:    {'✅ Có' if COOKIES_FILE else '—'}")
+    print(f"   Port:       {port}\n")
+    app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
