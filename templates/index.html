@@ -622,6 +622,11 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 .speed-item{padding:8px 14px;border-radius:9px;font-size:12px;font-weight:700;color:var(--tx2);text-align:center;transition:all .15s;cursor:pointer}
 .speed-item.on{background:var(--accent-soft);color:var(--accent)}
 @media(max-width:768px){.eq-panel,.speed-pop{bottom:184px;right:12px;left:12px;width:auto}.speed-pop{left:auto;width:120px}}
+.install-btn{position:fixed;bottom:120px;left:22px;z-index:998;padding:11px 16px;background:var(--grad);color:#fff;border-radius:14px;font-size:12.5px;font-weight:800;box-shadow:0 10px 30px var(--accent-soft);display:none;align-items:center;gap:8px;animation:toastIn .4s var(--spring);border:none;cursor:pointer}
+.install-btn.on{display:flex}
+.install-btn svg{width:16px;height:16px;fill:currentColor}
+@media(max-width:768px){.install-btn{bottom:190px;left:12px;font-size:11.5px;padding:9px 13px}}
+.eq-val.hot{color:var(--accent-2)}
 </style>
 </head>
 <body>
@@ -927,6 +932,11 @@ body{padding:0;padding-bottom:180px;cursor:auto}
   <button class="bn" data-nav="download" onclick="navTo('download')"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg><span>Tải</span></button>
 </nav>
 
+<button class="install-btn" id="installBtn" onclick="installPWA()">
+  <svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-5-3.5V6l3.5 3.5 1.41-1.41L12 3.17 7.09 8.09 8.5 9.5 12 6v8.5h1z"/></svg>
+  Cài đặt Nova
+</button>
+
 <div class="speed-pop" id="speedPop">
   <div class="speed-item" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</div>
   <div class="speed-item" data-speed="0.75" onclick="setSpeed(0.75)">0.75x</div>
@@ -940,6 +950,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
   <div class="eq-row"><span class="eq-row-lbl">Bass</span><input type="range" class="eq-slider" id="eqBass" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqBassVal">0dB</span></div>
   <div class="eq-row"><span class="eq-row-lbl">Mid</span><input type="range" class="eq-slider" id="eqMid" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqMidVal">0dB</span></div>
   <div class="eq-row"><span class="eq-row-lbl">Treble</span><input type="range" class="eq-slider" id="eqTreble" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqTrebleVal">0dB</span></div>
+  <div class="eq-row"><span class="eq-row-lbl">Boost</span><input type="range" class="eq-slider" id="boostSlider" min="1" max="3" step="0.1" value="1"><span class="eq-val" id="boostVal">1x</span></div>
   <div class="eq-presets">
     <button class="eq-preset on" onclick="applyEQPreset('flat')">Flat</button>
     <button class="eq-preset" onclick="applyEQPreset('bass')">Bass</button>
@@ -949,11 +960,12 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 </div>
 
 <div class="toasts" id="toasts"></div>
-<audio id="audio" preload="metadata"></audio><script>
+<audio id="audio" preload="metadata"></audio>
+<script>
 (function(){const cores=navigator.hardwareConcurrency||2,mem=navigator.deviceMemory||4,isM=window.innerWidth<768;if(cores<=2||mem<=2||(isM&&cores<=4))document.documentElement.classList.add('low-end');})();
 (function(){const w=document.getElementById('loadingStars');for(let i=0;i<80;i++){const s=document.createElement('div');s.className='loading-star';const sz=Math.random()*2+.5;s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s`;w.appendChild(s);}})();
 window.addEventListener('load',()=>{setTimeout(()=>{const ls=document.getElementById('loadingScreen');ls.classList.add('hide');setTimeout(()=>ls.remove(),900);},1600);});
-const S={curId:null,curInfo:null,curSrc:null,source:'soundcloud',view:'home',shuffle:false,loop:'off',volume:parseFloat(localStorage.getItem('nv_vol')||'0.8'),favorites:JSON.parse(localStorage.getItem('nv_favs')||'[]'),history:JSON.parse(localStorage.getItem('nv_hist')||'[]'),playlists:JSON.parse(localStorage.getItem('nv_pls')||'[]'),curPlId:null,queue:JSON.parse(localStorage.getItem('nv_queue')||'[]'),theme:localStorage.getItem('nv_theme')||'galaxy',lyricsTabActive:false,sleepUntil:null,sleepTimer:null};
+const S={curId:null,curInfo:null,curSrc:null,source:'soundcloud',view:'home',shuffle:false,loop:'off',volume:parseFloat(localStorage.getItem('nv_vol')||'0.8'),favorites:JSON.parse(localStorage.getItem('nv_favs')||'[]'),history:JSON.parse(localStorage.getItem('nv_hist')||'[]'),playlists:JSON.parse(localStorage.getItem('nv_pls')||'[]'),curPlId:null,queue:JSON.parse(localStorage.getItem('nv_queue')||'[]'),theme:localStorage.getItem('nv_theme')||'galaxy',lyricsTabActive:false,sleepUntil:null,sleepTimer:null,boost:parseFloat(localStorage.getItem('nv_boost')||'1')||1};
 const PARTY={code:null,sid:null,isHost:false,name:'',queue:[],members:[],playing:null,isPlaying:false,position:0,chat:[],pollTimer:null,suppress:false};
 let _lastPartyCodeQR=null,_qrRetryCount=0;
 const $=id=>document.getElementById(id);
@@ -1013,22 +1025,41 @@ function openPlaylist(id){const pl=S.playlists.find(p=>p.id===id);if(!pl)return;
 function addToQueue(t){if(S.queue.some(q=>q.id===t.id))return toast('Đã có trong hàng đợi');S.queue.push(t);save();renderQueue();toast('Đã thêm vào hàng đợi','ok');if(PARTY.code)fetch('/api/party/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track:t})}).catch(()=>{});}
 function renderQueue(){$('qCount').textContent=S.queue.length;const el=$('queueList');if(!S.queue.length){el.innerHTML='<div class="empty" style="padding:30px"><div class="empty-ic">📭</div><div class="empty-t">Hàng đợi trống</div></div>';return;}el.innerHTML=S.queue.map(t=>`<div class="q-item${t.id===S.curId?' on':''}" data-id="${esc(t.id)}"><img class="q-art" src="${esc(t.thumb||'')}" onerror="this.style.background='var(--s3)'"><div class="q-i"><div class="q-t">${esc(t.title)}</div><div class="q-s">${esc(t.channel||'')}</div></div><button class="q-del" onclick="event.stopPropagation();removeFromQueue('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>`).join('');el.querySelectorAll('.q-item').forEach(it=>{it.onclick=()=>{const t=S.queue.find(q=>q.id===it.dataset.id);if(t)playTrack(t.id,t);};});}
 function removeFromQueue(id){S.queue=S.queue.filter(q=>q.id!==id);save();renderQueue();}
+
+// ========== SPEED + EQ + BOOST ==========
 const SPEED_KEY='nv_speed';
 function initSpeed(){const s=parseFloat(localStorage.getItem(SPEED_KEY)||'1');audio.playbackRate=s;updateSpeedUI(s);}
 function setSpeed(s){audio.playbackRate=s;localStorage.setItem(SPEED_KEY,s);updateSpeedUI(s);$('speedPop').classList.remove('on');toast('⚡ Tốc độ: '+s+'x','ok');}
 function updateSpeedUI(s){const v=$('speedVal');if(v)v.textContent=s+'x';document.querySelectorAll('.speed-item').forEach(el=>el.classList.toggle('on',parseFloat(el.dataset.speed)===s));}
 function toggleSpeedPop(e){e?.stopPropagation();$('speedPop').classList.toggle('on');$('eqPanel').classList.remove('on');}
-let audioCtx=null,bassFilter=null,midFilter=null,trebleFilter=null,audioSource=null;
+let audioCtx=null,bassFilter=null,midFilter=null,trebleFilter=null,audioSource=null,gainNode=null;
 const EQ_KEY='nv_eq';
+const BOOST_KEY='nv_boost';
+
+function ensureAudioGraph(){
+  try{
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(!audioSource)audioSource=audioCtx.createMediaElementSource(audio);
+    if(!bassFilter){bassFilter=audioCtx.createBiquadFilter();bassFilter.type='lowshelf';bassFilter.frequency.value=200;}
+    if(!midFilter){midFilter=audioCtx.createBiquadFilter();midFilter.type='peaking';midFilter.frequency.value=1000;midFilter.Q.value=1;}
+    if(!trebleFilter){trebleFilter=audioCtx.createBiquadFilter();trebleFilter.type='highshelf';trebleFilter.frequency.value=3000;}
+    if(!gainNode)gainNode=audioCtx.createGain();
+    if(!audioSource._novaWired){
+      audioSource.connect(bassFilter);
+      bassFilter.connect(midFilter);
+      midFilter.connect(trebleFilter);
+      trebleFilter.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      audioSource._novaWired=true;
+    }
+    gainNode.gain.value=S.boost||1;
+    return true;
+  }catch(e){console.warn('AudioGraph:',e);return false;}
+}
+
 function initEQ(){
   try{
-    if(audioCtx)return;
-    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    audioSource=audioCtx.createMediaElementSource(audio);
-    bassFilter=audioCtx.createBiquadFilter();bassFilter.type='lowshelf';bassFilter.frequency.value=200;
-    midFilter=audioCtx.createBiquadFilter();midFilter.type='peaking';midFilter.frequency.value=1000;midFilter.Q.value=1;
-    trebleFilter=audioCtx.createBiquadFilter();trebleFilter.type='highshelf';trebleFilter.frequency.value=3000;
-    audioSource.connect(bassFilter);bassFilter.connect(midFilter);midFilter.connect(trebleFilter);trebleFilter.connect(audioCtx.destination);
+    if(!ensureAudioGraph())return;
     const saved=JSON.parse(localStorage.getItem(EQ_KEY)||'{"bass":0,"mid":0,"treble":0,"preset":"flat"}');
     applyEQ(saved.bass,saved.mid,saved.treble,true);
     if(saved.preset)document.querySelectorAll('.eq-preset').forEach(p=>p.classList.toggle('on',p.textContent.toLowerCase()===saved.preset));
@@ -1050,12 +1081,84 @@ function applyEQPreset(name){
   toast('🎚️ EQ: '+name.toUpperCase(),'ok');
 }
 function toggleEQPanel(e){e?.stopPropagation();$('eqPanel').classList.toggle('on');$('speedPop').classList.remove('on');if($('eqPanel').classList.contains('on'))initEQ();}
+
+function initBoost(){
+  const b=S.boost||1;
+  const sl=$('boostSlider'),lbl=$('boostVal');
+  if(sl)sl.value=b;
+  if(lbl){lbl.textContent=b.toFixed(1)+'x';lbl.classList.toggle('hot',b>1);}
+}
+function setBoost(b){
+  S.boost=b;
+  localStorage.setItem(BOOST_KEY,b);
+  if(b!==1||audioCtx)ensureAudioGraph();
+  if(gainNode)gainNode.gain.value=b;
+  const lbl=$('boostVal');
+  if(lbl){lbl.textContent=b.toFixed(1)+'x';lbl.classList.toggle('hot',b>1);}
+  if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
+  if(b>1.5&&!window._boostWarned){window._boostWarned=true;toast('⚠️ Boost cao có thể rè','');}
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
   ['eqBass','eqMid','eqTreble'].forEach(id=>{const el=$(id);if(el)el.addEventListener('input',()=>{applyEQ(parseFloat($('eqBass').value),parseFloat($('eqMid').value),parseFloat($('eqTreble').value));document.querySelectorAll('.eq-preset').forEach(p=>p.classList.remove('on'));});});
+  const bs=$('boostSlider');
+  if(bs)bs.addEventListener('input',()=>setBoost(parseFloat(bs.value)));
 });
 document.addEventListener('click',e=>{if(!e.target.closest('.speed-pop,.eq-panel,.speed-btn,.pc[onclick*="toggleEQPanel"]')){$('speedPop')?.classList.remove('on');$('eqPanel')?.classList.remove('on');}});
 document.addEventListener('touchstart',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();},{passive:true});
-document.addEventListener('click',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();},{passive:true});
+document.addEventListener('click',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();if(S.boost!==1&&!gainNode)ensureAudioGraph();},{passive:true});
+
+// ========== MEDIA SESSION ==========
+function setupMediaSession(){
+  if(!('mediaSession' in navigator))return;
+  const h=navigator.mediaSession;
+  const safe=(a,f)=>{try{h.setActionHandler(a,f);}catch(e){}};
+  safe('play',()=>audio.play().catch(()=>{}));
+  safe('pause',()=>audio.pause());
+  safe('previoustrack',()=>playPrev());
+  safe('nexttrack',()=>playNext());
+  safe('seekbackward',(d)=>{const s=(d&&d.seekOffset)||10;audio.currentTime=Math.max(0,audio.currentTime-s);});
+  safe('seekforward',(d)=>{const s=(d&&d.seekOffset)||10;if(audio.duration)audio.currentTime=Math.min(audio.duration,audio.currentTime+s);});
+  safe('seekto',(d)=>{if(d&&d.seekTime!=null&&audio.duration)audio.currentTime=d.seekTime;});
+  safe('stop',()=>{audio.pause();audio.currentTime=0;});
+}
+let _lastMediaPos=0;
+function updateMediaPosition(){
+  if(!('mediaSession' in navigator)||!navigator.mediaSession.setPositionState)return;
+  if(!audio.duration||isNaN(audio.duration))return;
+  const now=performance.now();
+  if(now-_lastMediaPos<1000)return;
+  _lastMediaPos=now;
+  try{navigator.mediaSession.setPositionState({duration:audio.duration,playbackRate:audio.playbackRate,position:Math.min(audio.currentTime,audio.duration)});}catch(e){}
+}
+
+// ========== PWA INSTALL ==========
+let deferredInstallPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredInstallPrompt=e;
+  $('installBtn')?.classList.add('on');
+});
+window.addEventListener('appinstalled',()=>{
+  deferredInstallPrompt=null;
+  $('installBtn')?.classList.remove('on');
+  toast('📲 Đã cài Nova Music','ok');
+});
+async function installPWA(){
+  if(!deferredInstallPrompt){
+    toast('Dùng "Thêm vào màn hình chính" trong menu trình duyệt','');
+    return;
+  }
+  try{
+    deferredInstallPrompt.prompt();
+    const {outcome}=await deferredInstallPrompt.userChoice;
+    if(outcome==='accepted')toast('📲 Đang cài Nova...','ok');
+  }catch(e){}
+  deferredInstallPrompt=null;
+  $('installBtn')?.classList.remove('on');
+}
+
+// ========== PLAYER ==========
 let hlsInstance=null;
 const audio=$('audio');
 audio.volume=S.volume;
@@ -1084,7 +1187,7 @@ function toggleLoop(){S.loop=S.loop==='off'?'all':S.loop==='all'?'one':'off';$('
 function toggleMute(){audio.muted=!audio.muted;$('volSlider').value=audio.muted?0:S.volume;toast(audio.muted?'🔇':'🔊');}
 $('volSlider').addEventListener('input',e=>{S.volume=parseFloat(e.target.value);audio.volume=S.volume;audio.muted=false;save();});
 $('volSlider').value=S.volume;
-audio.addEventListener('timeupdate',()=>{if(!audio.duration)return;const pct=(audio.currentTime/audio.duration*100)+'%';$('progressFill').style.width=pct;$('npProgF').style.width=pct;$('timeCur').textContent=fmt(audio.currentTime);$('timeDur').textContent=fmt(audio.duration);$('npTCur').textContent=fmt(audio.currentTime);$('npTDur').textContent=fmt(audio.duration);});
+audio.addEventListener('timeupdate',()=>{if(!audio.duration)return;const pct=(audio.currentTime/audio.duration*100)+'%';$('progressFill').style.width=pct;$('npProgF').style.width=pct;$('timeCur').textContent=fmt(audio.currentTime);$('timeDur').textContent=fmt(audio.duration);$('npTCur').textContent=fmt(audio.currentTime);$('npTDur').textContent=fmt(audio.duration);updateMediaPosition();});
 audio.addEventListener('play',()=>{$('playBtn').classList.remove('load');$('playIcon').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('npPIc').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('player').classList.add('playing');$('rp').classList.add('playing');});
 audio.addEventListener('pause',()=>{$('playIcon').innerHTML='<path d="M8 5v14l11-7z"/>';$('npPIc').innerHTML='<path d="M8 5v14l11-7z"/>';$('player').classList.remove('playing');$('rp').classList.remove('playing');});
 audio.addEventListener('ended',()=>playNext());
@@ -1110,7 +1213,7 @@ function syncLyrics(){if(!lyricsLines.length||audio.paused)return;const t=audio.
 function setLyricsStatus(text,active){const el=$('lyricsStatus');if(!el)return;el.textContent=text;el.classList.toggle('on',!!active);}
 function showLyricsEditor(show){$('lyricsView').style.display=show?'none':'flex';$('lyricsEditor').style.display=show?'flex':'none';}
 async function loadLyrics(){stopLyricsSync();lyricsLines=[];if(!S.curInfo){showLyricsEditor(false);setLyricsStatus('Chưa phát bài nào',false);$('lyricsView').innerHTML='<div class="lyrics-text" style="color:var(--tx3);padding:40px 20px;text-align:center">Chưa phát bài nào</div>';return;}showLyricsEditor(false);const saved=getSavedLyrics(S.curId);if(saved&&saved.text){const{hasTS}=parseTimestamps(saved.text);renderLyricsText(saved.text,hasTS);setLyricsStatus(saved.source==='manual'?'Lời thủ công':'Lời từ API',true);return;}setLyricsStatus('Đang tải...',false);await loadLyricsFromAPI();}
-async function loadLyricsFromAPI(){if(!S.curInfo){toast('Chưa phát bài nào');return;}const view=$('lyricsView');view.innerHTML='<div class="lyrics-text loading" id="lyricsBody">Đang tải...</div>';stopLyricsSync();setLyricsStatus('Đang tải...',false);const artist=(S.curInfo.uploader||'').replace(/ - Topic$/i,'').trim();const title=(S.curInfo.title||'').replace(/\(.*?\)|\[.*?\]/g,'').replace(/official|video|audio|lyrics|mv/gi,'').trim();try{const r=await fetch(`/api/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);const d=await r.json();if(d.lyrics){setSavedLyrics(S.curId,{text:d.lyrics,source:'api',ts:Date.now()});renderLyricsText(d.lyrics,false);setLyricsStatus('Lời từ API',true);toast('✓ Đã tải lyrics','ok');}else showEmptyLyrics();}catch{showEmptyLyrics();}}
+async function loadLyricsFromAPI(){if(!S.curInfo){toast('Chưa phát bài nào');return;}const view=$('lyricsView');view.innerHTML='<div class="lyrics-text loading" id="lyricsBody">Đang tải...</div>';stopLyricsSync();setLyricsStatus('Đang tải...',false);const artist=(S.curInfo.uploader||'').replace(/ - Topic$/i,'').trim();const title=(S.curInfo.title||'').replace(/\(.*?\)|\[.*?\]/g,'').replace(/official|video|audio|lyrics|mv/gi,'').trim();const duration=S.curInfo.duration||0;try{const r=await fetch(`/api/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}&duration=${duration}`);const d=await r.json();if(d.lyrics){setSavedLyrics(S.curId,{text:d.lyrics,source:'api',ts:Date.now()});const{hasTS}=parseTimestamps(d.lyrics);renderLyricsText(d.lyrics,hasTS);setLyricsStatus(d.synced?'Lời đồng bộ (lrclib)':'Lời từ API',true);toast(d.synced?'✓ Lyrics có timestamp':'✓ Đã tải lyrics','ok');}else showEmptyLyrics();}catch{showEmptyLyrics();}}
 function showEmptyLyrics(){setLyricsStatus('Không có lời',false);$('lyricsView').innerHTML=`<div style="text-align:center;padding:36px 16px"><div style="font-size:56px;opacity:.5;margin-bottom:12px">📝</div><div style="font-size:14px;font-weight:700;color:var(--tx2);margin-bottom:6px">Không tìm thấy lời</div><button class="lyrics-btn pri" onclick="editLyrics()" style="padding:10px 18px;font-size:12.5px;display:inline-flex;margin-top:10px">✏️ Thêm lời</button></div>`;}
 function editLyrics(){if(!S.curInfo){toast('Chưa phát bài nào');return;}const saved=getSavedLyrics(S.curId);let text='';if(saved&&saved.text)text=saved.text;else if(lyricsLines.length)text=lyricsLines.map(l=>`[${String(Math.floor(l.time/60)).padStart(2,'0')}:${String(Math.floor(l.time%60)).padStart(2,'0')}] ${l.text}`).join('\n');$('lyricsInput').value=text;showLyricsEditor(true);setTimeout(()=>$('lyricsInput').focus(),100);}
 function cancelEditLyrics(){showLyricsEditor(false);}
@@ -1125,7 +1228,7 @@ function copyQrUrl(){navigator.clipboard.writeText($('qrUrl').textContent).then(
 function openVideo(){if(!S.curId)return toast('Chưa phát bài nào');if(S.curSrc==='soundcloud')return toast('SoundCloud chỉ có audio');const v=$('videoEl');v.src=`/stream/${encodeURIComponent(S.curId)}?mode=video&source=${S.curSrc}`;v.volume=S.volume;$('videoOv').classList.add('on');v.play().catch(()=>{});audio.pause();}
 function closeVideo(){const v=$('videoEl');v.pause();v.removeAttribute('src');v.load();$('videoOv').classList.remove('on');if(S.curSrc==='youtube'||S.curSrc==='tiktok')audio.play().catch(()=>{});}
 async function doParse(){const url=$('linkInput').value.trim();if(!url)return toast('Dán link vào');$('parseBtn').disabled=true;$('parseBtn').textContent='...';$('preview').classList.remove('on');try{const r=await fetch('/api/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});const d=await r.json();if(!r.ok||d.error)return toast(d.error||'Lỗi','err');showPreview(d);}catch(e){toast('Lỗi: '+e.message,'err');}finally{$('parseBtn').disabled=false;$('parseBtn').textContent='Lấy info';}}
-function showPreview(d){$('preview').classList.add('on');$('pvThumb').src=d.thumbnail||'';$('pvSource').className='pv-src '+d.source;$('pvSource').textContent=d.source==='youtube'?'YouTube':d.source==='tiktok'?'TikTok':'SoundCloud';$('pvTitle').textContent=d.title||'—';$('pvMeta').textContent=[d.uploader,fmt(d.duration)].filter(Boolean).join(' · ');const src=d.source;let btns=`<button class="pv-btn play" data-a="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Nghe</button>`;btns+=`<button class="pv-btn dl" data-a="dla"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg> MP3</button>`;$('pvActions').innerHTML=btns;const data={id:d.video_id,title:d.title,thumb:d.thumbnail,channel:d.uploader,duration:d.duration,source:d.source};$('pvActions').querySelector('[data-a="play"]').onclick=()=>playTrack(d.video_id,data);$('pvActions').querySelector('[data-a="dla"]').onclick=()=>startDownload(d.video_id,'mp3',d.source);}
+function showPreview(d){$('preview').classList.add('on');$('pvThumb').src=d.thumbnail||'';$('pvSource').className='pv-src '+d.source;$('pvSource').textContent=d.source==='youtube'?'YouTube':d.source==='tiktok'?'TikTok':'SoundCloud';$('pvTitle').textContent=d.title||'—';$('pvMeta').textContent=[d.uploader,fmt(d.duration)].filter(Boolean).join(' · ');let btns=`<button class="pv-btn play" data-a="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Nghe</button>`;btns+=`<button class="pv-btn dl" data-a="dla"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg> MP3</button>`;$('pvActions').innerHTML=btns;const data={id:d.video_id,title:d.title,thumb:d.thumbnail,channel:d.uploader,duration:d.duration,source:d.source};$('pvActions').querySelector('[data-a="play"]').onclick=()=>playTrack(d.video_id,data);$('pvActions').querySelector('[data-a="dla"]').onclick=()=>startDownload(d.video_id,'mp3',d.source);}
 function quickDownload(vid,source){if(!vid){if(!S.curId)return toast('Chưa phát bài nào');vid=S.curId;source=S.curSrc;}source=source||'soundcloud';if(source==='soundcloud')startDownload(vid,'mp3','soundcloud');else if(source==='tiktok')startDownload(vid,'mp4','tiktok');else startDownload(vid,'mp3','youtube');}
 async function startDownload(vid,fmt,source){try{const r=await fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:vid,format:fmt,source})});const d=await r.json();if(d.error){toast(d.error,'err');return;}showDownloadProgress(d.task_id,fmt);}catch(e){toast('Lỗi tải','err');}}
 function showDownloadProgress(tid,fmt){const w=$('toasts');const el=document.createElement('div');el.className='dl-p';el.innerHTML=`<div class="dl-t">Đang tải ${fmt.toUpperCase()}...</div><div class="dl-pct" id="pct_${tid}">0%</div><div class="dl-bar"><div class="dl-f" id="fill_${tid}"></div></div>`;w.appendChild(el);const t=setInterval(async()=>{try{const r=await fetch('/api/download_status/'+tid);const d=await r.json();const pc=document.getElementById('pct_'+tid),fl=document.getElementById('fill_'+tid);if(!pc){clearInterval(t);return;}if(d.status==='downloading'){pc.textContent=d.progress||'...';fl.style.width=(parseFloat((d.progress||'0').replace('%','').trim())||0)+'%';}else if(d.status==='processing'){pc.textContent='Xử lý...';fl.style.width='95%';}else if(d.status==='done'){clearInterval(t);el.innerHTML=`<div class="dl-t" style="color:#10b981">✓ Hoàn tất!</div><a href="/api/download_file/${tid}" download>Lưu file</a>`;const a=document.createElement('a');a.href='/api/download_file/'+tid;a.download='';document.body.appendChild(a);a.click();a.remove();}else if(d.status==='error'){clearInterval(t);el.innerHTML=`<div class="dl-t" style="color:#f43f5e">Lỗi</div>`;}}catch{clearInterval(t);}},1000);}
@@ -1174,6 +1277,8 @@ renderHome();
 renderPlaylists();
 renderQueue();
 initSpeed();
+initBoost();
+setupMediaSession();
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'),1400);
 console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'}`);
 </script>
