@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: nova-music
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/ping
+    autoDeploy: true
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NOVA_COOKIES
+        sync: false
