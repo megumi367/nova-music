@@ -2,5 +2,6 @@ Flask
 yt-dlp
 requests
 flask-socketio
-simple-websocket
+eventlet
+gunicorn
 Pillow
