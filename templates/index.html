@@ -4,25 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <title>Nova · Music</title>
 <meta name="theme-color" content="#02010a">
-
-<!-- PWA / iOS meta -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Nova">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="application-name" content="Nova Music">
-<meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png">
-<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<link rel="shortcut icon" href="/icon-192.png">
-<link rel="mask-icon" href="/icon.svg" color="#a78bfa">
-
 <link rel="manifest" href="/manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
@@ -76,7 +59,6 @@ img{display:block;max-width:100%}
 .loading-star{position:absolute;background:#fff;border-radius:50%;animation:twinkle 3s ease-in-out infinite;box-shadow:0 0 4px rgba(255,255,255,.8)}
 .loading-logo{position:relative;width:180px;height:180px;margin-bottom:24px}
 .loading-logo svg{width:100%;height:100%;filter:drop-shadow(0 0 30px rgba(167,139,250,.8))}
-.loading-logo .nova-halo{transform-origin:center;animation:spin 20s linear infinite}
 .loading-title{font-family:'Cinzel',serif;font-size:52px;font-weight:700;letter-spacing:4px;background:linear-gradient(180deg,#e9d5ff,#c084fc,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:10px;filter:drop-shadow(0 0 30px rgba(167,139,250,.7))}
 .loading-sub{font-size:11px;color:#a78bfa;font-weight:500;letter-spacing:5px;text-transform:uppercase;margin-bottom:36px}
 .loading-bar{width:220px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;position:relative}
@@ -104,8 +86,8 @@ body{padding:10px;padding-bottom:116px}
 .panel::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:var(--grad);background-size:200% 100%;animation:gradShift 8s ease infinite;opacity:.5;pointer-events:none;z-index:1}
 .sb{display:flex;flex-direction:column}
 .sb-logo{padding:20px 18px 16px;display:flex;align-items:center;gap:11px;cursor:pointer;flex-shrink:0}
-.sb-logo-ic{width:44px;height:44px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.sb-logo-ic svg{width:100%;height:100%;position:relative;z-index:1;filter:drop-shadow(0 0 12px rgba(167,139,250,.6))}
+.sb-logo-ic{width:44px;height:44px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:12px;overflow:hidden;box-shadow:0 0 15px rgba(167,139,250,0.4)}
+.sb-logo-ic svg{width:100%;height:100%;position:relative;z-index:1}
 .nova-halo{transform-origin:center;animation:spin 20s linear infinite}
 .sb-logo-t{font-family:'Cinzel',serif;font-size:20px;font-weight:700;letter-spacing:2px;background:linear-gradient(180deg,#e9d5ff,#a78bfa,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent}
 .sb-nav{padding:6px 12px 12px;display:flex;flex-direction:column;gap:2px;flex-shrink:0}
@@ -614,15 +596,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 /* ================================================================ */
 /* ================== FINAL DRAWER - SIMPLEST ==================== */
 /* ================================================================ */
-body.drawer-open::before{
-  content:'';
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.65);
-  z-index:999998;
-  pointer-events:none;
-  animation:drawerFadeIn .25s ease forwards;
-}
+body.drawer-open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:999998;pointer-events:none;animation:drawerFadeIn .25s ease forwards}
 @keyframes drawerFadeIn{from{opacity:0}to{opacity:1}}
 
 .menu-toggle{display:none!important}
@@ -631,39 +605,16 @@ body.drawer-open::before{
 @media(max-width:768px){
   html.full-mode .menu-toggle{display:flex!important}
   html.full-mode .sb{
-    display:flex!important;
-    position:fixed!important;
-    top:0!important;
-    left:0!important;
-    bottom:0!important;
-    width:280px!important;
-    max-width:85vw!important;
-    z-index:999999!important;
-    transform:translateX(-105%)!important;
-    transition:transform .35s cubic-bezier(.32,.72,0,1)!important;
-    border-radius:0 20px 20px 0!important;
-    background:#0f0c23!important;
-    box-shadow:15px 0 60px rgba(0,0,0,.95)!important;
-    overflow-y:auto!important;
-    overscroll-behavior:contain!important;
+    display:flex!important;position:fixed!important;top:0!important;left:0!important;bottom:0!important;width:280px!important;max-width:85vw!important;z-index:999999!important;
+    transform:translateX(-105%)!important;transition:transform .35s cubic-bezier(.32,.72,0,1)!important;border-radius:0 20px 20px 0!important;background:#0f0c23!important;
+    box-shadow:15px 0 60px rgba(0,0,0,.95)!important;overflow-y:auto!important;overscroll-behavior:contain!important;
   }
-  html.full-mode .sb.open{
-    transform:translateX(0)!important;
-  }
+  html.full-mode .sb.open{transform:translateX(0)!important}
   html.full-mode .track-acts{opacity:1!important}
   html.full-mode .tracks.grid .track-acts{opacity:1!important}
   html.full-mode .pb-r{
-    display:flex!important;
-    position:absolute!important;
-    bottom:calc(100% + 6px)!important;
-    right:8px!important;
-    background:rgba(15,12,35,.96)!important;
-    border:1px solid var(--br2)!important;
-    border-radius:14px!important;
-    padding:4px!important;
-    gap:2px!important;
-    box-shadow:0 6px 24px rgba(0,0,0,.5)!important;
-    z-index:99!important;
+    display:flex!important;position:absolute!important;bottom:calc(100% + 6px)!important;right:8px!important;background:rgba(15,12,35,.96)!important;
+    border:1px solid var(--br2)!important;border-radius:14px!important;padding:4px!important;gap:2px!important;box-shadow:0 6px 24px rgba(0,0,0,.5)!important;z-index:99!important;
   }
   html.full-mode .pb-r .vol{display:none!important}
   html.full-mode .pb-r .pc{width:36px!important;height:36px!important}
@@ -673,118 +624,51 @@ html.compact-mode .track-acts{opacity:0}
 html.compact-mode .track:hover .track-acts{opacity:1}
 html.compact-mode .np-extra{grid-template-columns:repeat(3,1fr)}
 html.compact-mode .np-extra .ne:nth-child(n+4){display:none}
-html.compact-mode .meteor,
-html.compact-mode .aurora,
-html.compact-mode .cursor-glow,
-html.compact-mode .confetti,
-html.compact-mode .stars3{display:none!important}
+html.compact-mode .meteor,html.compact-mode .aurora,html.compact-mode .cursor-glow,html.compact-mode .confetti,html.compact-mode .stars3{display:none!important}
+html.compact-mode .track.playing .track-eq,html.compact-mode .rp.playing .np-art,html.compact-mode .player.playing .pb-art{animation-duration:60s!important}
 
+/* Ẩn overlay cũ phòng trường hợp element vẫn còn */
 .sb-overlay{display:none!important;visibility:hidden!important;pointer-events:none!important;}
 
 /* ===== AUTO EQ ===== */
-.eq-preset[data-auto="1"]{
-  background:linear-gradient(135deg,#22d3ee,#a78bfa)!important;
-  color:#fff!important;
-  animation:pulse 2s ease-in-out infinite;
-}
-#autoEqBadge{
-  display:none;align-items:center;gap:6px;padding:4px 10px;
-  background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(167,139,250,.15));
-  border:1px solid rgba(34,211,238,.35);border-radius:8px;
-  font-size:10px;font-weight:800;color:#22d3ee;
-  text-transform:uppercase;letter-spacing:.5px;margin-left:auto;margin-right:6px;
-}
+.eq-preset[data-auto="1"]{background:linear-gradient(135deg,#22d3ee,#a78bfa)!important;color:#fff!important;animation:pulse 2s ease-in-out infinite;}
+#autoEqBadge{display:none;align-items:center;gap:6px;padding:4px 10px;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(167,139,250,.15));border:1px solid rgba(34,211,238,.35);border-radius:8px;font-size:10px;font-weight:800;color:#22d3ee;text-transform:uppercase;letter-spacing:.5px;margin-left:auto;margin-right:6px;}
 #autoEqBadge.on{display:flex}
-#autoEqBadge .dot{
-  width:6px;height:6px;border-radius:50%;background:#22d3ee;
-  box-shadow:0 0 8px #22d3ee;animation:pulse 1.5s ease-in-out infinite;
-}
+#autoEqBadge .dot{width:6px;height:6px;border-radius:50%;background:#22d3ee;box-shadow:0 0 8px #22d3ee;animation:pulse 1.5s ease-in-out infinite;}
 .eq-slider.auto-locked{opacity:.55;cursor:not-allowed;}
 
 /* ===== PWA INSTALL UPGRADE ===== */
 .install-btn{
-  position:fixed;bottom:120px;left:22px;z-index:998;
-  padding:12px 18px;
-  background:linear-gradient(135deg,#a78bfa,#ec4899,#fb923c);
-  background-size:200% 200%;
-  animation:gradShift 3s ease infinite, toastIn .4s var(--spring);
-  color:#fff;border-radius:16px;font-size:13px;font-weight:800;
-  box-shadow:0 12px 32px rgba(167,139,250,.4), 0 0 0 1px rgba(255,255,255,.1) inset;
-  display:none;align-items:center;gap:10px;
-  border:none;cursor:pointer;
-  transition:transform .2s, box-shadow .2s;
+  position:fixed;bottom:120px;left:22px;z-index:998;padding:12px 18px;
+  background:linear-gradient(135deg,#a78bfa,#ec4899,#fb923c);background-size:200% 200%;animation:gradShift 3s ease infinite, toastIn .4s var(--spring);
+  color:#fff;border-radius:16px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(167,139,250,.4), 0 0 0 1px rgba(255,255,255,.1) inset;
+  display:none;align-items:center;gap:10px;border:none;cursor:pointer;transition:transform .2s, box-shadow .2s;
 }
 .install-btn.on{display:flex}
 .install-btn:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 16px 40px rgba(167,139,250,.6)}
 .install-btn:active{transform:scale(.98)}
-.install-btn .ic{
-  width:24px;height:24px;border-radius:8px;
-  background:rgba(255,255,255,.2);
-  display:flex;align-items:center;justify-content:center;
-  font-size:14px;flex-shrink:0;
-}
-@media(max-width:768px){
-  .install-btn{bottom:190px;left:12px;font-size:12px;padding:10px 14px}
-  .install-btn .ic{width:20px;height:20px;font-size:12px}
-}
-
+.install-btn .ic{width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+@media(max-width:768px){.install-btn{bottom:190px;left:12px;font-size:12px;padding:10px 14px}.install-btn .ic{width:20px;height:20px;font-size:12px}}
 body.is-standalone .install-btn{display:none!important}
 
 /* Install modal platform cards */
 .install-hero{text-align:center;padding:10px 0 22px;}
-.install-hero-icon{
-  width:88px;height:88px;border-radius:22px;
-  background:linear-gradient(135deg,#a78bfa,#ec4899);
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:48px;margin-bottom:16px;
-  box-shadow:0 20px 60px rgba(167,139,250,.4), 0 0 0 4px rgba(255,255,255,.1);
-}
-.install-hero-title{
-  font-size:20px;font-weight:900;margin-bottom:8px;
-  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;
-}
-.install-hero-sub{
-  font-size:13px;color:var(--tx3);line-height:1.6;max-width:300px;margin:0 auto;
-}
-.install-platform{
-  display:none;padding:18px;background:var(--s2);border:1px solid var(--br);
-  border-radius:16px;margin-top:14px;
-}
+.install-hero-icon{width:88px;height:88px;border-radius:22px;background:linear-gradient(135deg,#a78bfa,#ec4899);display:inline-flex;align-items:center;justify-content:center;font-size:48px;margin-bottom:16px;box-shadow:0 20px 60px rgba(167,139,250,.4), 0 0 0 4px rgba(255,255,255,.1);}
+.install-hero-title{font-size:20px;font-weight:900;margin-bottom:8px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.install-hero-sub{font-size:13px;color:var(--tx3);line-height:1.6;max-width:300px;margin:0 auto;}
+.install-platform{display:none;padding:18px;background:var(--s2);border:1px solid var(--br);border-radius:16px;margin-top:14px;}
 .install-platform.active{display:block;animation:popIn .25s var(--spring)}
-.install-platform-title{
-  display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;
-  color:var(--tx);margin-bottom:14px;text-transform:uppercase;letter-spacing:.8px;
-}
+.install-platform-title{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;color:var(--tx);margin-bottom:14px;text-transform:uppercase;letter-spacing:.8px;}
 .install-platform-title .emo{font-size:20px;}
-.install-step{
-  display:flex;gap:12px;padding:10px 0;font-size:13px;color:var(--tx2);
-  line-height:1.6;align-items:flex-start;border-bottom:1px solid var(--br);
-}
+.install-step{display:flex;gap:12px;padding:10px 0;font-size:13px;color:var(--tx2);line-height:1.6;align-items:flex-start;border-bottom:1px solid var(--br);}
 .install-step:last-child{border-bottom:none}
-.install-step-num{
-  width:24px;height:24px;border-radius:50%;
-  background:var(--accent-soft);color:var(--accent);
-  display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:900;flex-shrink:0;
-}
+.install-step-num{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0;}
 .install-step b{color:var(--tx);font-weight:800}
-.install-kbd{
-  display:inline-block;padding:2px 8px;background:var(--s3);
-  border-radius:6px;font-family:monospace;font-size:11px;
-  color:var(--accent);border:1px solid var(--br);font-weight:700;
-}
+.install-kbd{display:inline-block;padding:2px 8px;background:var(--s3);border-radius:6px;font-family:monospace;font-size:11px;color:var(--accent);border:1px solid var(--br);font-weight:700;}
 .install-actions{display:flex;gap:8px;margin-top:16px;}
-.install-actions button{
-  flex:1;padding:13px;border-radius:12px;font-size:13px;font-weight:800;
-  transition:all .2s;
-}
-.install-actions .primary{
-  background:var(--grad);color:#fff;
-  box-shadow:0 8px 24px var(--accent-soft);
-}
-.install-actions .ghost{
-  background:var(--s2);color:var(--tx2);border:1px solid var(--br);
-}
+.install-actions button{flex:1;padding:13px;border-radius:12px;font-size:13px;font-weight:800;transition:all .2s;}
+.install-actions .primary{background:var(--grad);color:#fff;box-shadow:0 8px 24px var(--accent-soft);}
+.install-actions .ghost{background:var(--s2);color:var(--tx2);border:1px solid var(--br);}
 </style>
 </head>
 <body>
@@ -792,20 +676,29 @@ body.is-standalone .install-btn{display:none!important}
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-stars" id="loadingStars"></div>
   <div class="loading-logo">
-    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- LOGO MỚI VẼ BẰNG CODE -->
+    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="nvg1" cx="50%" cy="50%"><stop offset="0%" stop-color="#e9d5ff"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#7c3aed"/></radialGradient>
-        <linearGradient id="nvg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient>
-        <filter id="nvgGlow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#1c0b3d"/>
+          <stop offset="100%" stop-color="#05020a"/>
+        </radialGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="12" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
-      <g class="nova-halo"><circle cx="50" cy="50" r="42" stroke="url(#nvg2)" stroke-width="0.6" stroke-dasharray="3 6" opacity="0.6" fill="none"/><circle cx="50" cy="50" r="36" stroke="url(#nvg2)" stroke-width="0.4" stroke-dasharray="2 4" opacity="0.4" fill="none"/></g>
-      <g filter="url(#nvgGlow)">
-        <path d="M50 8 L51.8 42 L50 47 L48.2 42 Z" fill="url(#nvg1)"/><path d="M50 92 L51.8 58 L50 53 L48.2 58 Z" fill="url(#nvg1)"/><path d="M8 50 L42 51.8 L47 50 L42 48.2 Z" fill="url(#nvg1)"/><path d="M92 50 L58 51.8 L53 50 L58 48.2 Z" fill="url(#nvg1)"/>
+      <circle cx="256" cy="256" r="256" fill="url(#bgGlow)"/>
+      <circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="6" filter="url(#glow)" opacity="0.8"/>
+      <circle cx="256" cy="256" r="170" fill="none" stroke="#ec4899" stroke-width="3" stroke-dasharray="15 25" opacity="0.6"/>
+      <path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
+      <rect x="236" y="250" width="40" height="60" fill="#000"/>
+      <ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
+      <g filter="url(#glow)">
+        <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" opacity="0.9"/>
+        <path d="M 256 130 L 275 235 L 380 256 L 275 277 L 256 380 L 237 277 L 132 256 L 237 235 Z" fill="#a78bfa"/>
       </g>
-      <circle cx="50" cy="50" r="30" stroke="url(#nvg1)" stroke-width="2" fill="none" stroke-dasharray="150 60" transform="rotate(-30 50 50)"/>
-      <circle cx="50" cy="50" r="24" fill="url(#nvg2)" opacity="0.18"/>
-      <path d="M50 26 L53 47 L74 50 L53 53 L50 74 L47 53 L26 50 L47 47 Z" fill="white" filter="url(#nvgGlow)"/>
-      <circle cx="50" cy="50" r="3" fill="#fff"/>
+      <circle cx="256" cy="256" r="12" fill="#fff" filter="url(#glow)"/>
     </svg>
   </div>
   <div class="loading-title">NOVA</div>
@@ -827,18 +720,21 @@ body.is-standalone .install-btn{display:none!important}
   <aside class="panel sb" id="sidebar">
     <div class="sb-logo" onclick="navTo('home')">
       <div class="sb-logo-ic">
-        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- LOGO MỚI VẼ BẰNG CODE -->
+        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <radialGradient id="svg1" cx="50%" cy="50%"><stop offset="0%" stop-color="#e9d5ff"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#7c3aed"/></radialGradient>
-            <linearGradient id="svg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient>
-            <filter id="svgGlow"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <radialGradient id="bgG2" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#1c0b3d"/>
+              <stop offset="100%" stop-color="#05020a"/>
+            </radialGradient>
+            <filter id="glow2"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
           </defs>
-          <g class="nova-halo"><circle cx="50" cy="50" r="42" stroke="url(#svg2)" stroke-width="0.6" stroke-dasharray="3 6" opacity="0.6" fill="none"/><circle cx="50" cy="50" r="36" stroke="url(#svg2)" stroke-width="0.4" stroke-dasharray="2 4" opacity="0.4" fill="none"/></g>
-          <g filter="url(#svgGlow)"><path d="M50 8 L51.8 42 L50 47 L48.2 42 Z" fill="url(#svg1)"/><path d="M50 92 L51.8 58 L50 53 L48.2 58 Z" fill="url(#svg1)"/><path d="M8 50 L42 51.8 L47 50 L42 48.2 Z" fill="url(#svg1)"/><path d="M92 50 L58 51.8 L53 50 L58 48.2 Z" fill="url(#svg1)"/></g>
-          <circle cx="50" cy="50" r="30" stroke="url(#svg1)" stroke-width="2" fill="none" stroke-dasharray="150 60" transform="rotate(-30 50 50)"/>
-          <circle cx="50" cy="50" r="24" fill="url(#svg2)" opacity="0.18"/>
-          <path d="M50 26 L53 47 L74 50 L53 53 L50 74 L47 53 L26 50 L47 47 Z" fill="white" filter="url(#svgGlow)"/>
-          <circle cx="50" cy="50" r="2.4" fill="#fff"/>
+          <circle cx="256" cy="256" r="256" fill="url(#bgG2)"/>
+          <circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="10" filter="url(#glow2)" opacity="0.8"/>
+          <path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
+          <ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
+          <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" filter="url(#glow2)"/>
+          <circle cx="256" cy="256" r="12" fill="#fff"/>
         </svg>
       </div>
       <span class="sb-logo-t">NOVA</span>
@@ -864,6 +760,7 @@ body.is-standalone .install-btn{display:none!important}
       <button class="sb-btn ghost" onclick="openThemeModal()">🎨 Giao diện</button>
     </div>
   </aside>
+  
   <main class="panel main">
     <div class="topbar">
       <button class="tb menu-toggle" onclick="toggleSidebar()" title="Menu">
@@ -925,6 +822,7 @@ body.is-standalone .install-btn{display:none!important}
       </div>
     </div>
   </main>
+  
   <aside class="panel rp" id="rp">
     <div class="rp-tabs">
       <button class="rp-tab on" data-tab="np" onclick="setRPTab('np')">Đang phát</button>
@@ -1115,30 +1013,24 @@ body.is-standalone .install-btn{display:none!important}
       <div class="install-hero-title">Cài Nova Music</div>
       <div class="install-hero-sub" id="installSub">Cài app để mở nhanh và nghe offline</div>
     </div>
-
     <div class="install-platform" id="installIOS">
       <div class="install-platform-title"><span class="emo">🍎</span> Hướng dẫn iOS (Safari)</div>
       <div class="install-step"><span class="install-step-num">1</span><div>Bấm nút <b>Chia sẻ</b> <span class="install-kbd">⎋</span> ở thanh dưới Safari</div></div>
       <div class="install-step"><span class="install-step-num">2</span><div>Cuộn xuống, chọn <b>"Thêm vào Màn hình chính"</b></div></div>
       <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Thêm"</b> ở góc trên phải</div></div>
-      <div class="install-step"><span class="install-step-num">4</span><div>Mở Nova từ màn hình chính</div></div>
     </div>
-
     <div class="install-platform" id="installAndroid">
       <div class="install-platform-title"><span class="emo">🤖</span> Hướng dẫn Android (Chrome)</div>
       <div class="install-step"><span class="install-step-num">1</span><div>Bấm <b>menu ⋮</b> ở góc trên phải</div></div>
       <div class="install-step"><span class="install-step-num">2</span><div>Chọn <b>"Cài đặt ứng dụng"</b> hoặc <b>"Thêm vào Màn hình chính"</b></div></div>
       <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Cài đặt"</b> để xác nhận</div></div>
-      <div class="install-step"><span class="install-step-num">4</span><div>Mở Nova từ màn hình chính</div></div>
     </div>
-
     <div class="install-platform" id="installDesktop">
       <div class="install-platform-title"><span class="emo">💻</span> Hướng dẫn Desktop (Chrome/Edge)</div>
       <div class="install-step"><span class="install-step-num">1</span><div>Tìm icon <b>cài đặt</b> trên thanh địa chỉ (bên phải URL)</div></div>
       <div class="install-step"><span class="install-step-num">2</span><div>Hoặc bấm <b>menu ⋮</b> → <b>"Cài đặt Nova Music"</b></div></div>
       <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Cài đặt"</b></div></div>
     </div>
-
     <div class="install-actions" id="installActions">
       <button class="ghost" onclick="closeModal('installModal')">Để sau</button>
       <button class="primary" onclick="doInstallFromModal()" id="installNowBtn" style="display:none">📲 Cài ngay</button>
@@ -1159,7 +1051,6 @@ body.is-standalone .install-btn{display:none!important}
   <button class="bn" data-nav="download" onclick="navTo('download')"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg><span>Tải</span></button>
 </nav>
 
-<!-- NÚT CÀI APP MỚI -->
 <button class="install-btn" id="installBtn" onclick="installPWA()">
   <span class="ic">📲</span>
   Cài Nova Music
