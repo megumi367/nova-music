@@ -92,7 +92,7 @@ body:hover .cursor-glow{opacity:.6}
 .confetti{position:fixed;width:10px;height:10px;pointer-events:none;z-index:9998;animation:confettiFall 3s linear forwards;border-radius:2px;will-change:transform}
 body{padding:10px;padding-bottom:116px}
 @media(hover:hover) and (pointer:fine){body{cursor:none}}
-.app{position:relative;z-index:1;display:grid;grid-template-columns:236px 1fr 340px;gap:10px;height:calc(100vh - 116px);animation:fadeIn .6s var(--ease) .3s both}
+.app{position:relative;display:grid;grid-template-columns:236px 1fr 340px;gap:10px;height:calc(100vh - 116px);animation:fadeIn .6s var(--ease) .3s both}
 .panel{background:var(--s1);border:1px solid var(--br);border-radius:var(--r);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);box-shadow:var(--sh);position:relative;overflow:hidden}
 .panel::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:var(--grad);background-size:200% 100%;animation:gradShift 8s ease infinite;opacity:.5;pointer-events:none;z-index:1}
 .sb{display:flex;flex-direction:column}
@@ -630,7 +630,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 .eq-val.hot{color:var(--accent-2)}
 
 /* ===== VIEW MODE ===== */
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:499;opacity:0;pointer-events:none;transition:opacity .3s}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:400;opacity:0;pointer-events:none;transition:opacity .3s}
 .sb-overlay.on{opacity:1;pointer-events:auto;display:block}
 .menu-toggle{display:none!important}
 .vm-btn.on{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}
@@ -639,7 +639,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
   html.full-mode .menu-toggle{display:flex!important}
   html.full-mode .sb{
     display:flex!important;position:fixed;top:0;left:0;bottom:0;
-    width:270px;max-width:82vw;z-index:500;
+    width:270px;max-width:82vw;z-index:600;
     transform:translateX(-100%);transition:transform .35s var(--ease);
     border-radius:0 var(--r) var(--r) 0;
     background:rgba(15,12,35,.98);backdrop-filter:blur(40px);
@@ -1656,4 +1656,4 @@ setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi b
 console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'} · Socket.io: ${typeof io!=='undefined'?'✅':'❌'} · ViewMode: ${_viewMode}`);
 </script>
 </body>
-</html>
+  </html>
