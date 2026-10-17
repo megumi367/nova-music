@@ -960,6 +960,10 @@ html.compact-mode .player.playing .pb-art{animation-duration:60s!important}
     <div class="krow"><span>Tìm kiếm</span><span class="kbd">/</span></div>
     <div class="krow" style="cursor:pointer;border-top:1px solid var(--br);padding-top:14px;margin-top:6px" onclick="toggleSmartAuto()"><span>🎯 Smart Auto-Next</span><span class="kbd" id="smartAutoState">Bật</span></div>
     <div class="krow" style="cursor:pointer" onclick="closeModal('helpModal');setTimeout(()=>openModal('cleanModal'),200)"><span>🧹 Tự động xoá lịch sử</span><span class="kbd">→</span></div>
+    <div class="krow" style="cursor:pointer;background:rgba(244,63,94,.1);padding:12px;border-radius:10px;margin-top:12px;border:1px solid rgba(244,63,94,.3)" onclick="hardResetApp()">
+      <span style="color:#f43f5e">🔄 Xoá cache & tải lại</span>
+      <span class="kbd" style="background:#f43f5e;color:#fff">Bấm</span>
+    </div>
   </div>
 </div>
 
@@ -987,6 +991,9 @@ html.compact-mode .player.playing .pb-art{animation-duration:60s!important}
       Chọn giao diện phù hợp để không bị ẩn chức năng
     </div>
     <div style="display:flex;flex-direction:column;gap:10px" id="viewModeList"></div>
+    <div id="viewModeWarn" style="display:none;padding:10px 12px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.3);border-radius:10px;font-size:11.5px;color:#fb923c;line-height:1.6;margin-top:10px">
+      ⚠️ Bạn đang dùng <b>desktop/tablet</b>. Chế độ Đầy đủ chỉ có tác dụng khác biệt trên <b>mobile (&lt;768px)</b>.
+    </div>
     <div style="font-size:11.5px;color:var(--tx3);margin-top:14px;line-height:1.7;padding:12px;background:var(--s2);border-radius:12px">
       💡 <b style="color:var(--accent)">Đầy đủ</b>: hiện nút ☰ (mở sidebar), player hiện thêm nút EQ/Tốc độ/Video/Info<br>
       💡 <b style="color:var(--accent)">Gọn</b>: ẩn bớt, tắt animations, tiết kiệm pin
@@ -1037,6 +1044,24 @@ html.compact-mode .player.playing .pb-art{animation-duration:60s!important}
 <div class="toasts" id="toasts"></div>
 <audio id="audio" preload="metadata"></audio>
 <script>
+// ========== URL RESET (must be first) ==========
+if(new URLSearchParams(location.search).get('reset')==='1'){
+  (async()=>{
+    try{
+      if('serviceWorker' in navigator){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        for(const r of regs) await r.unregister();
+      }
+      if('caches' in window){
+        const keys=await caches.keys();
+        for(const k of keys) await caches.delete(k);
+      }
+    }catch(e){}
+    history.replaceState(null,'',location.pathname);
+    location.reload();
+  })();
+}
+
 (function(){const cores=navigator.hardwareConcurrency||2,mem=navigator.deviceMemory||4,isM=window.innerWidth<768;if(cores<=2||mem<=2||(isM&&cores<=4))document.documentElement.classList.add('low-end');})();
 (function(){const w=document.getElementById('loadingStars');for(let i=0;i<80;i++){const s=document.createElement('div');s.className='loading-star';const sz=Math.random()*2+.5;s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s`;w.appendChild(s);}})();
 window.addEventListener('load',()=>{setTimeout(()=>{const ls=document.getElementById('loadingScreen');ls.classList.add('hide');setTimeout(()=>ls.remove(),900);},1600);});
@@ -1253,7 +1278,13 @@ function preloadNext(){
   _preloadedId=next.id;
   fetch('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:next.id,mode:'audio',source:next.source||S.curSrc||'soundcloud'})}).then(r=>r.json()).then(d=>{
     if(d.error||d.is_hls)return;
-    if(!_preloadAudio){_preloadAudio=document.createElement('audio');_preloadAudio.preload='auto';_preloadAudio.style.display='none';document.body.appendChild(_preloadAudio);}
+    if(!_preloadAudio){
+      _preloadAudio=document.createElement('audio');
+      _preloadAudio.preload='auto';
+      _preloadAudio.style.display='none';
+      _preloadAudio.onerror=()=>{_preloadedId=null;};
+      document.body.appendChild(_preloadAudio);
+    }
     _preloadAudio.src=`/stream/${encodeURIComponent(next.id)}?mode=audio&source=${next.source||S.curSrc}`;
   }).catch(()=>{});
 }
@@ -1444,7 +1475,6 @@ setInterval(()=>{
 function openModal(id){$(id).classList.add('on');if(id==='helpModal'){setTimeout(()=>{const el=$('smartAutoState');if(el)el.textContent=isSmartAutoOn()?'Bật':'Tắt';},50);}if(id==='cleanModal'){const d=getCleanDays(),lbl={0:'Tắt',1:'1 ngày',7:'7 ngày',30:'30 ngày',90:'90 ngày'};setTimeout(()=>{const el=$('cleanCurrent');if(el)el.textContent=lbl[d]||d+' ngày';},50);}}
 function closeModal(id){$(id).classList.remove('on');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.mbg.on').forEach(m=>m.classList.remove('on'));$('partyPanel').classList.remove('on');if($('videoOv').classList.contains('on'))closeVideo();return;}if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;switch(e.key){case' ':e.preventDefault();togglePlay();break;case'ArrowRight':if(audio.duration)audio.currentTime=Math.min(audio.duration,audio.currentTime+10);break;case'ArrowLeft':audio.currentTime=Math.max(0,audio.currentTime-10);break;case'ArrowUp':e.preventDefault();S.volume=Math.min(1,S.volume+0.05);audio.volume=S.volume;$('volSlider').value=S.volume;save();break;case'ArrowDown':e.preventDefault();S.volume=Math.max(0,S.volume-0.05);audio.volume=S.volume;$('volSlider').value=S.volume;save();break;case'm':case'M':toggleMute();break;case'f':case'F':toggleFavCurrent();break;case'n':case'N':playNext();break;case'p':case'P':playPrev();break;case'd':case'D':playRandomNow();break;case's':case'S':toggleShuffle();break;case'r':case'R':toggleLoop();break;case'v':case'V':openVideo();break;case'i':case'I':openInfoModal();break;case'/':e.preventDefault();$('q').focus();break;}});
-if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 setTimeout(()=>{$('favBadge').textContent=S.favorites.length;$('plBadge').textContent=S.playlists.length;},100);
 renderHome();
 renderPlaylists();
@@ -1474,13 +1504,35 @@ function applyViewMode(mode){
     const vm=VIEW_MODES.find(v=>v.id===_viewMode);
     btn.title='Chế độ: '+(vm?.name||'Tự động');
   }
+  // Đóng sidebar cũ nếu đổi mode
+  const sb0=document.querySelector('.sb'), ov0=$('sbOverlay');
+  sb0?.classList.remove('open');
+  ov0?.classList.remove('on');
+
+  // Auto-mở sidebar để user THẤY thay đổi (mobile + full mode)
+  if(_viewMode==='full' && window.matchMedia('(max-width: 768px)').matches){
+    setTimeout(()=>{
+      const sb=document.querySelector('.sb');
+      const ov=$('sbOverlay');
+      if(sb && !sb.classList.contains('open')){
+        sb.classList.add('open');
+        ov?.classList.add('on');
+        setTimeout(()=>{
+          sb.classList.remove('open');
+          ov?.classList.remove('on');
+        }, 2800);
+      }
+    }, 400);
+  }
+  console.log('[Nova] ViewMode:', _viewMode, '| mobile:', window.matchMedia('(max-width: 768px)').matches);
 }
 
 function openViewModeModal(){
   const list=$('viewModeList');
   if(!list)return;
+  const isMobileNow = window.matchMedia('(max-width: 768px)').matches;
   list.innerHTML=VIEW_MODES.map(m=>`
-    <button onclick="applyViewMode('${m.id}');closeModal('viewModeModal');toast('${m.icon} ${m.name}','ok')"
+    <button onclick="pickViewMode('${m.id}')"
       style="text-align:left;padding:14px 16px;border-radius:12px;
         background:${m.id===_viewMode?'var(--accent-soft)':'var(--s2)'};
         border:1.5px solid ${m.id===_viewMode?'var(--accent)':'var(--br)'};
@@ -1494,7 +1546,25 @@ function openViewModeModal(){
       </div>
     </button>
   `).join('');
+  const warn = $('viewModeWarn');
+  if(warn) warn.style.display = isMobileNow ? 'none' : 'block';
   openModal('viewModeModal');
+}
+
+function pickViewMode(id){
+  applyViewMode(id);
+  closeModal('viewModeModal');
+  if(id==='full'){
+    if(window.matchMedia('(max-width: 768px)').matches){
+      toast('🖥️ Đã bật Đầy đủ — bấm ☰ để mở menu','ok');
+    }else{
+      toast('🖥️ Chế độ Đầy đủ (desktop vốn đã đầy đủ)','ok');
+    }
+  }else if(id==='compact'){
+    toast('📱 Đã bật Gọn gàng','ok');
+  }else{
+    toast('🔄 Đã bật Tự động','ok');
+  }
 }
 
 function toggleSidebar(){
@@ -1534,8 +1604,56 @@ if(window.innerWidth<768&&!localStorage.getItem('nv_vm_hint')){
   setTimeout(()=>toast('💡 Bấm 📐 để mở khóa chức năng đang ẩn',''),3000);
 }
 
+// ========== HARD RESET CACHE ==========
+async function hardResetApp(){
+  if(!confirm('Xoá toàn bộ cache và tải lại trang?\n(localStorage vẫn giữ — không mất playlist/yêu thích)')) return;
+  try{
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const reg of regs) await reg.unregister();
+    }
+    if('caches' in window){
+      const keys = await caches.keys();
+      for(const k of keys) await caches.delete(k);
+    }
+  }catch(e){}
+  location.reload(true);
+}
+
+// ========== RESIZE FIX ==========
+window.addEventListener('resize', () => {
+  if(window.innerWidth > 768){
+    const sb = document.querySelector('.sb');
+    const ov = $('sbOverlay');
+    sb?.classList.remove('open');
+    ov?.classList.remove('on');
+  }
+});
+
+// ========== SERVICE WORKER ==========
+if('serviceWorker' in navigator){
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(refreshing) return;
+    refreshing = true;
+    toast('🔄 Đã cập nhật phiên bản mới — tải lại...','ok');
+    setTimeout(()=>location.reload(), 800);
+  });
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if(!nw) return;
+      nw.addEventListener('statechange', () => {
+        if(nw.state === 'installed' && navigator.serviceWorker.controller){
+          nw.postMessage('SKIP_WAITING');
+        }
+      });
+    });
+  }).catch(()=>{});
+}
+
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'),1400);
 console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'} · Socket.io: ${typeof io!=='undefined'?'✅':'❌'} · ViewMode: ${_viewMode}`);
 </script>
 </body>
-    </html>
+</html>
