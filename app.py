@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file, send_from_directory
-import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile
+import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, pickle, atexit
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+
+# ⬅️ PATCH #1: SocketIO init
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading',
+                    ping_timeout=20, ping_interval=10)
 
 stream_cache = {}
 tasks = {}
@@ -31,6 +36,46 @@ try:
 except: pass
 
 
+# ============ ⬅️ PATCH #2: DISK CACHE ============
+CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stream_cache.pkl')
+_cache_lock = threading.Lock()
+
+def _load_cache():
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'rb') as f:
+                data = pickle.load(f)
+            now = time.time()
+            for k, v in list(data.items()):
+                if now - v.get('ts', 0) >= v.get('ttl', 0):
+                    del data[k]
+            with _cache_lock:
+                stream_cache.update(data)
+            print(f"✅ Loaded {len(stream_cache)} cached items")
+    except Exception as e:
+        print(f"⚠️ Cache load failed: {e}")
+
+def _save_cache():
+    try:
+        with _cache_lock:
+            snapshot = dict(stream_cache)
+        tmp = CACHE_FILE + '.tmp'
+        with open(tmp, 'wb') as f:
+            pickle.dump(snapshot, f)
+        os.replace(tmp, CACHE_FILE)
+    except Exception as e:
+        print(f"⚠️ Cache save failed: {e}")
+
+def _cache_saver_loop():
+    while True:
+        time.sleep(90)
+        _save_cache()
+
+atexit.register(_save_cache)
+_load_cache()
+threading.Thread(target=_cache_saver_loop, daemon=True).start()
+
+
 def base_opts():
     o = {
         'quiet': True, 'no_warnings': True, 'nocheckcertificate': True,
@@ -48,27 +93,39 @@ def run_to(fn, timeout=30, *args):
     try:
         return f.result(timeout=timeout)
     except FutureTimeout:
-        raise Exception(f"Timeout {timeout}s")
+        raise Exception(f"Timeout {timeout}s — chạy: pip install -U yt-dlp")
 
 
 # ============ YOUTUBE ============
-YT_CLIENTS = [['ios'], ['web_embedded'], ['android_vr'], ['tv_embedded'], ['mweb'], ['android']]
+YT_CLIENTS = [
+    ['ios'], ['web_embedded'], ['android_vr'], ['tv_embedded'],
+    ['mweb'], ['web_safari'], ['android'],
+]
 
 
 def extract_youtube(vid, mode='audio', timeout=30):
     def _try(client_list):
         o = base_opts()
         if mode == 'video':
-            o['format'] = ('best[ext=mp4][height<=720][vcodec!=none][acodec!=none]/'
-                           'best[ext=mp4][height<=1080][vcodec!=none][acodec!=none]/'
-                           'best[ext=mp4][vcodec!=none][acodec!=none]/best[height<=720]/best')
+            o['format'] = (
+                'best[ext=mp4][height<=720][vcodec!=none][acodec!=none]/'
+                'best[ext=mp4][height<=1080][vcodec!=none][acodec!=none]/'
+                'best[ext=mp4][vcodec!=none][acodec!=none]/'
+                'best[height<=720]/best'
+            )
         else:
-            o['format'] = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio[ext=mp3]/bestaudio/best'
+            o['format'] = (
+                'bestaudio[ext=m4a]/bestaudio[ext=webm]/'
+                'bestaudio[ext=mp3]/bestaudio/best'
+            )
         o['extractor_args'] = {'youtube': {'player_client': client_list}}
-        o['http_headers'] = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        o['http_headers'] = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
         url = vid if str(vid).startswith('http') else f"https://www.youtube.com/watch?v={vid}"
         with yt_dlp.YoutubeDL(o) as y:
-            return y.extract_info(url, download=False)
+            info = y.extract_info(url, download=False)
+        return info
 
     last_err = None
     for clients in YT_CLIENTS:
@@ -175,14 +232,22 @@ def extract_audio(vid, source='youtube', mode='audio', timeout=30):
     }
 
 
+# ⬅️ PATCH #3: get_cached dùng lock + evict
 def get_cached(vid, source='youtube', mode='audio'):
     key = f"{source}:{mode}:{vid}"
     now = time.time()
-    if key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
-        return stream_cache[key]['data']
+    with _cache_lock:
+        e = stream_cache.get(key)
+        if e and now - e['ts'] < e['ttl']:
+            return e['data']
     info = extract_audio(vid, source, mode)
     ttl = 2400 if source == 'youtube' else 7000
-    stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
+    with _cache_lock:
+        stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
+        if len(stream_cache) > 300:
+            oldest = sorted(stream_cache.items(), key=lambda x: x[1]['ts'])[:50]
+            for k, _ in oldest:
+                stream_cache.pop(k, None)
     return info
 
 
@@ -191,9 +256,9 @@ def b64d(s): return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
 
 
 def build_sc_url(e):
-    for k in ('webpage_url', 'permalink_url', 'original_url'):
+    for k in ('webpage_url','permalink_url','original_url'):
         u = e.get(k) or ''
-        if isinstance(u, str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u:
+        if isinstance(u,str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u:
             return u
     u = urllib.parse.unquote(str(e.get('url') or ''))
     m = re.search(r'soundcloud[:\/]tracks[:\/](\d+)', u)
@@ -253,24 +318,21 @@ def detect(url):
     return None
 
 
-# ============ ROUTES ============
 @app.route('/api/ping')
 def ping():
     return 'pong', 200
 
 
 @app.route('/')
-def index():
-    return send_from_directory('templates', 'index.html')
+def index(): return send_from_directory('templates', 'index.html')
 
 
 @app.route('/api/search')
 def search():
     q = request.args.get('q', '').strip()
-    limit = int(request.args.get('limit', 20))
     if not q: return jsonify([])
     try:
-        r = yt_search(q, limit)
+        r = yt_search(q)
         return jsonify(r if r else {'error': 'Không có kết quả'}), (200 if r else 404)
     except Exception as e:
         traceback.print_exc()
@@ -280,10 +342,9 @@ def search():
 @app.route('/api/sc_search')
 def sc_search_route():
     q = request.args.get('q', '').strip()
-    limit = int(request.args.get('limit', 20))
     if not q: return jsonify([])
     try:
-        r = sc_search(q, limit)
+        r = sc_search(q)
         return jsonify(r if r else {'error': 'Không có kết quả'}), (200 if r else 404)
     except Exception as e:
         traceback.print_exc()
@@ -295,8 +356,10 @@ def suggest():
     q = request.args.get('q', '').strip()
     if not q or len(q) < 2: return jsonify([])
     try:
-        r = requests.get('https://suggestqueries.google.com/complete/search',
-                         params={'client': 'firefox', 'ds': 'yt', 'q': q}, timeout=3)
+        r = requests.get(
+            'https://suggestqueries.google.com/complete/search',
+            params={'client': 'firefox', 'ds': 'yt', 'q': q}, timeout=3
+        )
         return jsonify(r.json()[1][:8])
     except:
         return jsonify([])
@@ -356,52 +419,34 @@ def parse():
 
 @app.route('/api/lyrics')
 def lyrics():
-    artist = request.args.get('artist', '').strip()
-    title = request.args.get('title', '').strip()
-    duration = request.args.get('duration', '').strip()
-    if not title:
+    artist = request.args.get('artist', '')
+    title = request.args.get('title', '')
+    if not artist or not title:
         return jsonify({'error': 'Thiếu thông tin'}), 400
-    hdr = {'User-Agent': 'NovaMusic/1.0 (https://github.com/megumi367/nova-music)'}
-
-    # 1. lrclib.net /get — exact match (có synced)
     try:
-        params = {'artist_name': artist, 'track_name': title}
-        if duration:
-            try: params['duration'] = int(float(duration))
-            except: pass
-        r = requests.get('https://lrclib.net/api/get', params=params, headers=hdr, timeout=8)
+        r = requests.get(f"https://api.lyrics.ovh/v1/{artist}/{title}", timeout=6)
         if r.status_code == 200:
-            d = r.json()
-            if d.get('syncedLyrics'):
-                return jsonify({'lyrics': d['syncedLyrics'], 'synced': True, 'source': 'lrclib'})
-            if d.get('plainLyrics'):
-                return jsonify({'lyrics': d['plainLyrics'], 'synced': False, 'source': 'lrclib'})
-    except Exception:
-        pass
+            return jsonify(r.json())
+        return jsonify({'error': 'Không có lời'}), 404
+    except:
+        return jsonify({'error': 'Không có lời'}), 404
 
-    # 2. lrclib.net /search — fuzzy
-    try:
-        q = f"{artist} {title}".strip()
-        r = requests.get('https://lrclib.net/api/search', params={'q': q}, headers=hdr, timeout=8)
-        if r.status_code == 200:
-            for item in (r.json() or [])[:5]:
-                if item.get('syncedLyrics'):
-                    return jsonify({'lyrics': item['syncedLyrics'], 'synced': True, 'source': 'lrclib-search'})
-                if item.get('plainLyrics'):
-                    return jsonify({'lyrics': item['plainLyrics'], 'synced': False, 'source': 'lrclib-search'})
-    except Exception:
-        pass
 
-    # 3. lyrics.ovh — fallback
-    if artist:
-        try:
-            r = requests.get(f"https://api.lyrics.ovh/v1/{artist}/{title}", headers=hdr, timeout=6)
-            if r.status_code == 200 and (r.json() or {}).get('lyrics'):
-                return jsonify({'lyrics': r.json()['lyrics'], 'synced': False, 'source': 'lyrics.ovh'})
-        except Exception:
-            pass
-
-    return jsonify({'error': 'Không có lời'}), 404
+def rewrite_m3u8(c, base):
+    out = []
+    for line in c.split('\n'):
+        s = line.strip()
+        if not s:
+            out.append(line); continue
+        if s.startswith('#'):
+            if 'URI="' in s:
+                def repl(m):
+                    return f'URI="/hls_proxy?t={b64e(urllib.parse.urljoin(base, m.group(1)))}"'
+                s = re.sub(r'URI="([^"]+)"', repl, s)
+            out.append(s)
+        else:
+            out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
+    return '\n'.join(out)
 
 
 @app.route('/hls_proxy')
@@ -425,8 +470,11 @@ def hls_proxy():
             c = r.text
         except:
             return "Read error", 502
-        return Response(rewrite_m3u8(c, url), mimetype='application/vnd.apple.mpegurl',
-                        headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'})
+        return Response(
+            rewrite_m3u8(c, url),
+            mimetype='application/vnd.apple.mpegurl',
+            headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
+        )
 
     def gen():
         try:
@@ -436,8 +484,11 @@ def hls_proxy():
         finally:
             try: r.close()
             except: pass
-    return Response(stream_with_context(gen()), mimetype=ct or 'audio/aac',
-                    headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'})
+    return Response(
+        stream_with_context(gen()),
+        mimetype=ct or 'audio/aac',
+        headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
+    )
 
 
 @app.route('/stream/<path:vid>')
@@ -469,10 +520,14 @@ def stream(vid):
             h[k] = req.headers[k]
     if 'Content-Type' not in h:
         ext = info['url'].split('?')[0].split('.')[-1].lower()
-        h['Content-Type'] = {'m4a': 'audio/mp4', 'mp4': 'video/mp4',
-                             'webm': 'video/webm', 'mp3': 'audio/mpeg'}.get(ext, 'audio/mp4')
-    return Response(stream_with_context(req.iter_content(65536)),
-                    status=req.status_code, headers=h)
+        h['Content-Type'] = {
+            'm4a': 'audio/mp4', 'mp4': 'video/mp4',
+            'webm': 'video/webm', 'mp3': 'audio/mpeg'
+        }.get(ext, 'audio/mp4')
+    return Response(
+        stream_with_context(req.iter_content(65536)),
+        status=req.status_code, headers=h
+    )
 
 
 def dl_task(tid, vid, fmt, source):
@@ -543,8 +598,7 @@ def download():
 
 
 @app.route('/api/download_status/<tid>')
-def dl_status(tid):
-    return jsonify(tasks.get(tid, {'status': 'not_found'}))
+def dl_status(tid): return jsonify(tasks.get(tid, {'status': 'not_found'}))
 
 
 @app.route('/api/download_file/<tid>')
@@ -568,6 +622,132 @@ def clean_room(code):
             del room['members'][sid]
     if not room['members']:
         del PARTY_ROOMS[code]
+
+
+# ============ ⬅️ PATCH #4: WEBSOCKET PARTY ============
+def _room_state(code):
+    room = PARTY_ROOMS.get(code)
+    if not room:
+        return None
+    return {
+        'queue': room['queue'],
+        'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()],
+        'playing': room['playing'],
+        'position': room['position'],
+        'is_playing': room['is_playing'],
+        'chat': room['chat'][-30:],
+        'host': room.get('host'),
+        'code': code,
+    }
+
+def _broadcast_state(code):
+    st = _room_state(code)
+    if st:
+        socketio.emit('party_state', st, room=f'party_{code}')
+
+@socketio.on('party_join')
+def ws_party_join(data):
+    from flask import request as freq
+    code = (data.get('code') or '').upper().strip()
+    user = (data.get('user') or 'Khách').strip()[:20]
+    sid = data.get('sid') or uuid.uuid4().hex[:10]
+    if not code or code not in PARTY_ROOMS:
+        emit('party_error', {'error': 'Không tìm thấy phòng'})
+        return
+    join_room(f'party_{code}')
+    PARTY_ROOMS[code]['members'][sid] = {
+        'name': user, 'last_seen': time.time(), 'sid': sid,
+        'socket_id': freq.sid,
+    }
+    emit('party_joined', {
+        'code': code, 'sid': sid,
+        'is_host': user == PARTY_ROOMS[code].get('host'),
+    })
+    _broadcast_state(code)
+
+@socketio.on('party_leave')
+def ws_party_leave(data):
+    code = (data.get('code') or '').upper()
+    sid = data.get('sid')
+    if code in PARTY_ROOMS and sid in PARTY_ROOMS[code]['members']:
+        del PARTY_ROOMS[code]['members'][sid]
+        leave_room(f'party_{code}')
+        clean_room(code)
+        if code in PARTY_ROOMS:
+            _broadcast_state(code)
+
+@socketio.on('party_play')
+def ws_party_play(data):
+    code = (data.get('code') or '').upper()
+    if code in PARTY_ROOMS:
+        PARTY_ROOMS[code]['playing'] = data.get('track')
+        PARTY_ROOMS[code]['position'] = data.get('position', 0)
+        PARTY_ROOMS[code]['is_playing'] = True
+        _broadcast_state(code)
+
+@socketio.on('party_sync')
+def ws_party_sync(data):
+    code = (data.get('code') or '').upper()
+    if code in PARTY_ROOMS:
+        PARTY_ROOMS[code]['position'] = data.get('position', 0)
+        PARTY_ROOMS[code]['is_playing'] = data.get('is_playing', True)
+        emit('party_sync',
+             {'position': data.get('position'), 'is_playing': data.get('is_playing')},
+             room=f'party_{code}', include_self=False)
+
+@socketio.on('party_add')
+def ws_party_add(data):
+    code = (data.get('code') or '').upper()
+    t = data.get('track')
+    if code in PARTY_ROOMS and t:
+        PARTY_ROOMS[code]['queue'].append(t)
+        _broadcast_state(code)
+
+@socketio.on('party_remove')
+def ws_party_remove(data):
+    code = (data.get('code') or '').upper()
+    i = data.get('idx')
+    if code in PARTY_ROOMS and isinstance(i, int) and 0 <= i < len(PARTY_ROOMS[code]['queue']):
+        PARTY_ROOMS[code]['queue'].pop(i)
+        _broadcast_state(code)
+
+@socketio.on('party_chat')
+def ws_party_chat(data):
+    code = (data.get('code') or '').upper()
+    user = (data.get('user') or 'Khách')[:20]
+    text = (data.get('text') or '').strip()[:200]
+    if code in PARTY_ROOMS and text:
+        msg = {'user': user, 'text': text, 'ts': time.time()}
+        PARTY_ROOMS[code]['chat'].append(msg)
+        if len(PARTY_ROOMS[code]['chat']) > 100:
+            PARTY_ROOMS[code]['chat'] = PARTY_ROOMS[code]['chat'][-100:]
+        socketio.emit('party_chat', msg, room=f'party_{code}')
+
+@socketio.on('party_ping')
+def ws_party_ping(data):
+    code = (data.get('code') or '').upper()
+    sid = data.get('sid')
+    if code in PARTY_ROOMS and sid in PARTY_ROOMS[code]['members']:
+        PARTY_ROOMS[code]['members'][sid]['last_seen'] = time.time()
+    st = _room_state(code)
+    if st:
+        emit('party_state', st)
+
+@socketio.on('disconnect')
+def ws_disconnect():
+    from flask import request as freq
+    sock_id = freq.sid
+    for code in list(PARTY_ROOMS.keys()):
+        room = PARTY_ROOMS.get(code)
+        if not room:
+            continue
+        for mid, m in list(room['members'].items()):
+            if m.get('socket_id') == sock_id:
+                del room['members'][mid]
+                clean_room(code)
+                if code in PARTY_ROOMS:
+                    _broadcast_state(code)
+                break
 
 
 @app.route('/api/party/create', methods=['POST', 'GET'])
@@ -618,7 +798,6 @@ def party_state():
         if code not in PARTY_ROOMS: return jsonify({'error': 'Phòng đã đóng'}), 404
         room = PARTY_ROOMS[code]
         return jsonify({
-            'code': code,
             'queue': room['queue'],
             'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()],
             'playing': room['playing'], 'position': room['position'],
@@ -652,6 +831,19 @@ def party_play():
             PARTY_ROOMS[code]['playing'] = d.get('track')
             PARTY_ROOMS[code]['position'] = 0
             PARTY_ROOMS[code]['is_playing'] = True
+        return jsonify({'ok': True})
+    except:
+        return jsonify({'ok': False}), 500
+
+
+@app.route('/api/party/sync', methods=['POST'])
+def party_sync():
+    try:
+        d = request.get_json(silent=True) or {}
+        code = (d.get('code') or '').upper()
+        if code in PARTY_ROOMS:
+            PARTY_ROOMS[code]['position'] = d.get('position', 0)
+            PARTY_ROOMS[code]['is_playing'] = d.get('is_playing', True)
         return jsonify({'ok': True})
     except:
         return jsonify({'ok': False}), 500
@@ -725,14 +917,18 @@ def debug():
     return jsonify({
         'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
         'cookies': bool(COOKIES_FILE),
-        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS)
+        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
+        'cache_file_exists': os.path.exists(CACHE_FILE),
     })
 
 
+# ⬅️ PATCH #5: socketio.run
 if __name__ == '__main__':
     import yt_dlp as y
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
+    print(f"   cache: {len(stream_cache)} items · {CACHE_FILE}")
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
+    socketio.run(app, host='0.0.0.0', port=port,
+                 debug=False, allow_unsafe_werkzeug=True)
