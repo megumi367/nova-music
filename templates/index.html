@@ -7,6 +7,9 @@
 <title>Nova · Music</title>
 <meta name="theme-color" content="#02010a">
 <link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon-v2-180.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-v2-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -676,29 +679,47 @@ body.is-standalone .install-btn{display:none!important}
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-stars" id="loadingStars"></div>
   <div class="loading-logo">
-    <!-- LOGO MỚI VẼ BẰNG CODE -->
     <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#1c0b3d"/>
-          <stop offset="100%" stop-color="#05020a"/>
+        <radialGradient id="lsBg" cx="50%" cy="42%" r="65%">
+          <stop offset="0%" stop-color="#3a1060"/>
+          <stop offset="55%" stop-color="#0a0520"/>
+          <stop offset="100%" stop-color="#02010a"/>
         </radialGradient>
-        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="12" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        <filter id="lsGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="7" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="lsSoft" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="12"/>
         </filter>
       </defs>
-      <circle cx="256" cy="256" r="256" fill="url(#bgGlow)"/>
-      <circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="6" filter="url(#glow)" opacity="0.8"/>
-      <circle cx="256" cy="256" r="170" fill="none" stroke="#ec4899" stroke-width="3" stroke-dasharray="15 25" opacity="0.6"/>
-      <path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
-      <rect x="236" y="250" width="40" height="60" fill="#000"/>
-      <ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
-      <g filter="url(#glow)">
-        <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" opacity="0.9"/>
-        <path d="M 256 130 L 275 235 L 380 256 L 275 277 L 256 380 L 237 277 L 132 256 L 237 235 Z" fill="#a78bfa"/>
+      <circle cx="256" cy="256" r="256" fill="url(#lsBg)"/>
+      <circle cx="256" cy="216" r="148" fill="none" stroke="#a78bfa" stroke-width="12" filter="url(#lsSoft)" opacity="0.85"/>
+      <circle cx="256" cy="216" r="148" fill="none" stroke="#b794ff" stroke-width="5"/>
+      <circle cx="256" cy="216" r="132" fill="none" stroke="#ec4899" stroke-width="2" stroke-dasharray="8 14" opacity="0.65"/>
+      <g filter="url(#lsGlow)">
+        <path d="M 256 18 L 268 190 L 256 200 L 244 190 Z" fill="#a78bfa"/>
+        <path d="M 256 414 L 268 242 L 256 232 L 244 242 Z" fill="#a78bfa"/>
+        <path d="M 18 216 L 190 228 L 200 216 L 190 204 Z" fill="#a78bfa"/>
+        <path d="M 494 216 L 322 228 L 312 216 L 322 204 Z" fill="#a78bfa"/>
       </g>
-      <circle cx="256" cy="256" r="12" fill="#fff" filter="url(#glow)"/>
+      <g fill="#000">
+        <path d="M 158 512 L 168 372 C 173 318, 200 288, 230 276 L 256 296 L 282 276 C 312 288, 339 318, 344 372 L 354 512 Z"/>
+        <rect x="234" y="236" width="44" height="66"/>
+        <ellipse cx="256" cy="196" rx="66" ry="74"/>
+        <path d="M 192 160 L 210 100 L 228 160 Z"/>
+        <path d="M 234 150 L 256 60 L 278 150 Z"/>
+        <path d="M 284 160 L 302 100 L 320 160 Z"/>
+      </g>
+      <g filter="url(#lsGlow)">
+        <path d="M 253 512 L 259 512 L 258 200 L 254 200 Z" fill="#c4a3ff" opacity="0.85"/>
+      </g>
+      <g filter="url(#lsGlow)">
+        <path d="M 256 120 L 270 184 L 340 196 L 270 208 L 256 272 L 242 208 L 172 196 L 242 184 Z" fill="#fff"/>
+      </g>
+      <path d="M 256 152 L 262 190 L 300 196 L 262 202 L 256 240 L 250 202 L 212 196 L 250 190 Z" fill="#fff"/>
+      <circle cx="256" cy="196" r="5" fill="#fff"/>
     </svg>
   </div>
   <div class="loading-title">NOVA</div>
@@ -720,21 +741,43 @@ body.is-standalone .install-btn{display:none!important}
   <aside class="panel sb" id="sidebar">
     <div class="sb-logo" onclick="navTo('home')">
       <div class="sb-logo-ic">
-        <!-- LOGO MỚI VẼ BẰNG CODE -->
         <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <radialGradient id="bgG2" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#1c0b3d"/>
-              <stop offset="100%" stop-color="#05020a"/>
+            <radialGradient id="sbBg" cx="50%" cy="42%" r="65%">
+              <stop offset="0%" stop-color="#3a1060"/>
+              <stop offset="60%" stop-color="#0a0520"/>
+              <stop offset="100%" stop-color="#02010a"/>
             </radialGradient>
-            <filter id="glow2"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="sbGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="5" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
           </defs>
-          <circle cx="256" cy="256" r="256" fill="url(#bgG2)"/>
-          <circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="10" filter="url(#glow2)" opacity="0.8"/>
-          <path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
-          <ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
-          <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" filter="url(#glow2)"/>
-          <circle cx="256" cy="256" r="12" fill="#fff"/>
+          <circle cx="256" cy="256" r="256" fill="url(#sbBg)"/>
+          <circle cx="256" cy="216" r="148" fill="none" stroke="#a78bfa" stroke-width="10" filter="url(#sbGlow)" opacity="0.85"/>
+          <circle cx="256" cy="216" r="148" fill="none" stroke="#b794ff" stroke-width="5"/>
+          <g filter="url(#sbGlow)">
+            <path d="M 256 22 L 268 190 L 256 200 L 244 190 Z" fill="#a78bfa"/>
+            <path d="M 256 410 L 268 242 L 256 232 L 244 242 Z" fill="#a78bfa"/>
+            <path d="M 22 216 L 190 228 L 200 216 L 190 204 Z" fill="#a78bfa"/>
+            <path d="M 490 216 L 322 228 L 312 216 L 322 204 Z" fill="#a78bfa"/>
+          </g>
+          <g fill="#000">
+            <path d="M 158 512 L 168 372 C 173 318, 200 288, 230 276 L 256 296 L 282 276 C 312 288, 339 318, 344 372 L 354 512 Z"/>
+            <rect x="234" y="236" width="44" height="66"/>
+            <ellipse cx="256" cy="196" rx="66" ry="74"/>
+            <path d="M 192 160 L 210 100 L 228 160 Z"/>
+            <path d="M 234 150 L 256 60 L 278 150 Z"/>
+            <path d="M 284 160 L 302 100 L 320 160 Z"/>
+          </g>
+          <g filter="url(#sbGlow)">
+            <path d="M 253 512 L 259 512 L 258 200 L 254 200 Z" fill="#c4a3ff" opacity="0.85"/>
+          </g>
+          <g filter="url(#sbGlow)">
+            <path d="M 256 120 L 270 184 L 340 196 L 270 208 L 256 272 L 242 208 L 172 196 L 242 184 Z" fill="#fff"/>
+          </g>
+          <path d="M 256 152 L 262 190 L 300 196 L 262 202 L 256 240 L 250 202 L 212 196 L 250 190 Z" fill="#fff"/>
+          <circle cx="256" cy="196" r="5" fill="#fff"/>
         </svg>
       </div>
       <span class="sb-logo-t">NOVA</span>
@@ -1004,7 +1047,6 @@ body.is-standalone .install-btn{display:none!important}
   </div>
 </div>
 
-<!-- ===== PWA INSTALL MODAL ===== -->
 <div class="mbg" id="installModal" onclick="if(event.target===this)closeModal('installModal')">
   <div class="modal">
     <button class="m-x" onclick="closeModal('installModal')">✕</button>
@@ -2711,13 +2753,11 @@ window.addEventListener('load', () => {
 
 document.addEventListener('visibilitychange', () => document.body.classList.toggle('tab-hidden', document.hidden));
 
-// Detect standalone
 detectStandalone();
 document.addEventListener('visibilitychange', () => {
   if(!document.hidden) detectStandalone();
 });
 
-// Handle ?source=pwa & ?nav=
 (function(){
   const p = new URLSearchParams(location.search);
   const nav = p.get('nav');
@@ -2738,7 +2778,6 @@ if(_isStandalone){
   if(meta) meta.setAttribute('content', '#0f0c23');
 }
 
-// Auto load ?play= / ?party=
 (function(){
   const p = new URLSearchParams(location.search);
   const playId = p.get('play'), src = p.get('source')||'soundcloud';
@@ -2763,7 +2802,6 @@ if(_isStandalone){
   }
 })();
 
-// Init data
 setTimeout(()=>{
   $('favBadge').textContent = S.favorites.length;
   $('plBadge').textContent = S.playlists.length;
@@ -2785,4 +2823,4 @@ setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi b
 console.log(`[Nova] Mobile: ${window.matchMedia('(max-width: 768px)').matches} · ViewMode: ${_viewMode} · AutoEQ: ${localStorage.getItem(AUTO_EQ_KEY)==='1'?'ON':'OFF'} · PWA: ${_isStandalone?'installed':'browser'}`);
 </script>
 </body>
-  </html>
+            </html>
