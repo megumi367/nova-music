@@ -903,8 +903,22 @@ self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting(
     return Response(s, mimetype='application/javascript', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
 
 
+@app.route('/api/debug')
+def debug():
+    import yt_dlp as y
+    return jsonify({
+        'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
+        'cookies': bool(COOKIES_FILE),
+        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
+        'pillow': HAS_PIL,
+    })
+
+
 if __name__ == '__main__':
     import yt_dlp as y
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
+    print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
+    print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
+    print(f"   pillow: {'✅' if HAS_PIL else '⚠️'}")
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
