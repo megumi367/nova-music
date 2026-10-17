@@ -8,6 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 <style>
 :root{--bg:#02010a;--s1:rgba(15,12,35,.72);--s2:rgba(28,22,58,.62);--s3:rgba(45,34,88,.5);--br:rgba(255,255,255,.08);--br2:rgba(255,255,255,.16);--tx:#f5f3ff;--tx2:#b8aede;--tx3:#7568a3;--accent:#a78bfa;--accent-2:#ec4899;--accent-soft:rgba(167,139,250,.15);--grad:linear-gradient(135deg,#a78bfa,#ec4899,#fb923c);--ok:#10b981;--err:#f43f5e;--ease:cubic-bezier(.32,.72,0,1);--spring:cubic-bezier(.34,1.5,.64,1);--r:20px;--r2:14px;--sh:0 8px 40px rgba(0,0,0,.5)}
@@ -966,7 +967,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 (function(){const w=document.getElementById('loadingStars');for(let i=0;i<80;i++){const s=document.createElement('div');s.className='loading-star';const sz=Math.random()*2+.5;s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*3}s`;w.appendChild(s);}})();
 window.addEventListener('load',()=>{setTimeout(()=>{const ls=document.getElementById('loadingScreen');ls.classList.add('hide');setTimeout(()=>ls.remove(),900);},1600);});
 const S={curId:null,curInfo:null,curSrc:null,source:'soundcloud',view:'home',shuffle:false,loop:'off',volume:parseFloat(localStorage.getItem('nv_vol')||'0.8'),favorites:JSON.parse(localStorage.getItem('nv_favs')||'[]'),history:JSON.parse(localStorage.getItem('nv_hist')||'[]'),playlists:JSON.parse(localStorage.getItem('nv_pls')||'[]'),curPlId:null,queue:JSON.parse(localStorage.getItem('nv_queue')||'[]'),theme:localStorage.getItem('nv_theme')||'galaxy',lyricsTabActive:false,sleepUntil:null,sleepTimer:null,boost:parseFloat(localStorage.getItem('nv_boost')||'1')||1};
-const PARTY={code:null,sid:null,isHost:false,name:'',queue:[],members:[],playing:null,isPlaying:false,position:0,chat:[],pollTimer:null,suppress:false};
+const PARTY={code:null,sid:null,isHost:false,name:'',queue:[],members:[],playing:null,isPlaying:false,position:0,chat:[],socket:null,connected:false,suppress:false,pollTimer:null,pollFallback:false};
 let _lastPartyCodeQR=null,_qrRetryCount=0;
 const $=id=>document.getElementById(id);
 const esc=s=>{const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;};
@@ -1022,7 +1023,7 @@ function renderPlaylists(){$('plBadge').textContent=S.playlists.length;const el=
 function createPlaylist(){const n=prompt('Tên playlist:');if(!n?.trim())return;S.playlists.push({id:'pl_'+Date.now(),name:n.trim(),tracks:[]});save();renderPlaylists();toast('Đã tạo playlist','ok');}
 function deletePlaylist(id){if(!confirm('Xoá playlist?'))return;S.playlists=S.playlists.filter(p=>p.id!==id);save();renderPlaylists();toast('Đã xoá','ok');}
 function openPlaylist(id){const pl=S.playlists.find(p=>p.id===id);if(!pl)return;S.curPlId=id;document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));$('view-pl-detail').classList.add('on');$('plDetailName').textContent=pl.name;const el=$('plDetailList');if(!pl.tracks.length)el.innerHTML='<div class="empty"><div class="empty-ic">📁</div><div class="empty-t">Playlist trống</div></div>';else renderTracks(pl.tracks,el,false);}
-function addToQueue(t){if(S.queue.some(q=>q.id===t.id))return toast('Đã có trong hàng đợi');S.queue.push(t);save();renderQueue();toast('Đã thêm vào hàng đợi','ok');if(PARTY.code)fetch('/api/party/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track:t})}).catch(()=>{});}
+function addToQueue(t){if(S.queue.some(q=>q.id===t.id))return toast('Đã có trong hàng đợi');S.queue.push(t);save();renderQueue();toast('Đã thêm vào hàng đợi','ok');if(PARTY.code){if(PARTY.socket&&PARTY.connected){PARTY.socket.emit('party_add',{code:PARTY.code,track:t});}else{fetch('/api/party/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track:t})}).catch(()=>{});}}}
 function renderQueue(){$('qCount').textContent=S.queue.length;const el=$('queueList');if(!S.queue.length){el.innerHTML='<div class="empty" style="padding:30px"><div class="empty-ic">📭</div><div class="empty-t">Hàng đợi trống</div></div>';return;}el.innerHTML=S.queue.map(t=>`<div class="q-item${t.id===S.curId?' on':''}" data-id="${esc(t.id)}"><img class="q-art" src="${esc(t.thumb||'')}" onerror="this.style.background='var(--s3)'"><div class="q-i"><div class="q-t">${esc(t.title)}</div><div class="q-s">${esc(t.channel||'')}</div></div><button class="q-del" onclick="event.stopPropagation();removeFromQueue('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>`).join('');el.querySelectorAll('.q-item').forEach(it=>{it.onclick=()=>{const t=S.queue.find(q=>q.id===it.dataset.id);if(t)playTrack(t.id,t);};});}
 function removeFromQueue(id){S.queue=S.queue.filter(q=>q.id!==id);save();renderQueue();}
 
@@ -1162,6 +1163,28 @@ async function installPWA(){
 let hlsInstance=null;
 const audio=$('audio');
 audio.volume=S.volume;
+
+// ⬅️ PATCH: PRELOAD TRACK
+let _preloadAudio=null,_preloadedId=null;
+function preloadNext(){
+  if(!S.curId)return;
+  let next=null;
+  if(S.queue.length){
+    const i=S.queue.findIndex(q=>q.id===S.curId);
+    next=S.queue[(i+1)%S.queue.length];
+  }else if(S.history.length>1){
+    const i=S.history.findIndex(h=>h.id===S.curId);
+    next=S.history[i+1]||S.history[0];
+  }
+  if(!next||next.id===S.curId||next.id===_preloadedId)return;
+  _preloadedId=next.id;
+  fetch('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:next.id,mode:'audio',source:next.source||S.curSrc||'soundcloud'})}).then(r=>r.json()).then(d=>{
+    if(d.error||d.is_hls)return;
+    if(!_preloadAudio){_preloadAudio=document.createElement('audio');_preloadAudio.preload='auto';_preloadAudio.style.display='none';document.body.appendChild(_preloadAudio);}
+    _preloadAudio.src=`/stream/${encodeURIComponent(next.id)}?mode=audio&source=${next.source||S.curSrc}`;
+  }).catch(()=>{});
+}
+
 async function playTrack(vid,meta){
   if(typeof vid==='string'&&vid.includes('soundcloud')){const dec=decodeURIComponent(vid);const m=dec.match(/soundcloud[:\/]tracks[:\/](\d+)/);if(m)vid=`https://api.soundcloud.com/tracks/${m[1]}`;}
   flashScreen();
@@ -1175,7 +1198,7 @@ async function playTrack(vid,meta){
   audio.pause();audio.removeAttribute('src');audio.load();
   if(d.is_hls&&d.hls_token){const hlsUrl='/hls_proxy?t='+d.hls_token;if(window.Hls&&Hls.isSupported()){hlsInstance=new Hls({enableWorker:true,lowLatencyMode:false});hlsInstance.loadSource(hlsUrl);hlsInstance.attachMedia(audio);hlsInstance.on(Hls.Events.MANIFEST_PARSED,()=>{audio.volume=S.volume;audio.play().catch(e=>{$('playBtn').classList.remove('load');if(e.name!=='AbortError')toast('Không phát được','err');});});hlsInstance.on(Hls.Events.ERROR,(e,data)=>{if(data.fatal){if(data.type===Hls.ErrorTypes.NETWORK_ERROR)hlsInstance.startLoad();else if(data.type===Hls.ErrorTypes.MEDIA_ERROR)hlsInstance.recoverMediaError();else{$('playBtn').classList.remove('load');hlsInstance.destroy();hlsInstance=null;}}});}else if(audio.canPlayType('application/vnd.apple.mpegurl')){audio.src=hlsUrl;audio.volume=S.volume;audio.play().catch(()=>{});}}
   else{audio.src=`/stream/${encodeURIComponent(vid)}?mode=audio&source=${d.source}`;audio.volume=S.volume;audio.load();const play=()=>audio.play().catch(e=>{$('playBtn').classList.remove('load');if(e.name!=='AbortError')toast('Không phát được: '+e.name,'err');});audio.addEventListener('canplay',play,{once:true});play();}
-  if(PARTY.code&&PARTY.isHost&&!PARTY.suppress){fetch('/api/party/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track:{id:vid,title:d.title,thumb:d.thumbnail,channel:d.uploader,duration:d.duration,source:S.curSrc}})}).catch(()=>{});}
+  if(PARTY.code&&PARTY.isHost&&!PARTY.suppress){const track={id:vid,title:d.title,thumb:d.thumbnail,channel:d.uploader,duration:d.duration,source:S.curSrc};if(PARTY.socket&&PARTY.connected){PARTY.socket.emit('party_play',{code:PARTY.code,track,position:0});}else{fetch('/api/party/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,track})}).catch(()=>{});}}
   }catch(e){$('playBtn').classList.remove('load');toast('Lỗi: '+e.message,'err');}
 }
 function renderInfoPanel(d){const src=S.curSrc||d.source||'soundcloud',srcL=src==='youtube'?'YouTube':src==='tiktok'?'TikTok':'SoundCloud',isFav=S.favorites.some(f=>f.id===S.curId);$('infoPanel').innerHTML=`<div class="info-card"><img class="info-cover" src="${esc(d.thumbnail||'')}" onerror="this.style.background='var(--s3)'"><div class="info-head"><span class="info-src-badge ${src}">${srcL}</span><div class="info-title">${esc(d.title||'—')}</div><div class="info-artist">${esc(d.uploader||'Không rõ')}</div></div></div><div class="info-section"><div class="info-row"><span class="info-l">Nguồn</span><span class="info-v">${srcL}</span></div><div class="info-row"><span class="info-l">Thời lượng</span><span class="info-v">${fmt(d.duration)||'—'}</span></div><div class="info-row"><span class="info-l">Nghệ sĩ</span><span class="info-v">${esc(d.uploader||'—')}</span></div><div class="info-row"><span class="info-l">Định dạng</span><span class="info-v">${d.is_hls?'HLS':'Direct'} Audio</span></div></div><div class="info-section"><div class="info-row" style="cursor:pointer" onclick="toggleFavCurrent()"><span class="info-l">${isFav?'❤️ Đã yêu thích':'🤍 Thêm yêu thích'}</span><span class="info-v" style="color:var(--accent)">${isFav?'Bỏ':'Thêm'}</span></div><div class="info-row" style="cursor:pointer" onclick="quickDownload()"><span class="info-l">📥 Tải xuống</span><span class="info-v" style="color:var(--accent)">MP3</span></div><div class="info-row" style="cursor:pointer" onclick="shareCurrent()"><span class="info-l">🔗 Chia sẻ</span><span class="info-v" style="color:var(--accent)">QR</span></div></div>`;}
@@ -1187,15 +1210,31 @@ function toggleLoop(){S.loop=S.loop==='off'?'all':S.loop==='all'?'one':'off';$('
 function toggleMute(){audio.muted=!audio.muted;$('volSlider').value=audio.muted?0:S.volume;toast(audio.muted?'🔇':'🔊');}
 $('volSlider').addEventListener('input',e=>{S.volume=parseFloat(e.target.value);audio.volume=S.volume;audio.muted=false;save();});
 $('volSlider').value=S.volume;
-audio.addEventListener('timeupdate',()=>{if(!audio.duration)return;const pct=(audio.currentTime/audio.duration*100)+'%';$('progressFill').style.width=pct;$('npProgF').style.width=pct;$('timeCur').textContent=fmt(audio.currentTime);$('timeDur').textContent=fmt(audio.duration);$('npTCur').textContent=fmt(audio.currentTime);$('npTDur').textContent=fmt(audio.duration);updateMediaPosition();});
+audio.addEventListener('timeupdate',()=>{if(!audio.duration)return;const pct=(audio.currentTime/audio.duration*100)+'%';$('progressFill').style.width=pct;$('npProgF').style.width=pct;$('timeCur').textContent=fmt(audio.currentTime);$('timeDur').textContent=fmt(audio.duration);$('npTCur').textContent=fmt(audio.currentTime);$('npTDur').textContent=fmt(audio.duration);updateMediaPosition();
+  // ⬅️ PATCH: preload khi còn 15s
+  if(audio.duration-audio.currentTime<15)preloadNext();
+});
 audio.addEventListener('play',()=>{$('playBtn').classList.remove('load');$('playIcon').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('npPIc').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('player').classList.add('playing');$('rp').classList.add('playing');});
 audio.addEventListener('pause',()=>{$('playIcon').innerHTML='<path d="M8 5v14l11-7z"/>';$('npPIc').innerHTML='<path d="M8 5v14l11-7z"/>';$('player').classList.remove('playing');$('rp').classList.remove('playing');});
 audio.addEventListener('ended',()=>playNext());
 audio.addEventListener('seeked',()=>{lyricsActiveIdx=-1;});
-audio.addEventListener('loadedmetadata',()=>{lyricsActiveIdx=-1;});
+audio.addEventListener('loadedmetadata',()=>{lyricsActiveIdx=-1;_preloadedId=null;});
 $('progressBar').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();if(audio.duration)audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;});
+
+// ⬅️ PATCH: party sync heartbeat 5s
+let _lastPartySync=0;
+audio.addEventListener('timeupdate',()=>{
+  if(!PARTY.code||!PARTY.isHost||PARTY.suppress)return;
+  const now=Date.now();
+  if(now-_lastPartySync<5000)return;
+  _lastPartySync=now;
+  if(PARTY.socket&&PARTY.connected){
+    PARTY.socket.emit('party_sync',{code:PARTY.code,position:audio.currentTime,is_playing:!audio.paused});
+  }
+});
+
 function npSeek(e){const r=e.currentTarget.getBoundingClientRect();if(audio.duration)audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;}
-function toggleFav(id,data){const i=S.favorites.findIndex(f=>f.id===id);if(i>=0){S.favorites.splice(i,1);toast('💔 Đã xoá');}else{S.favorites.unshift({...data,id});toast('❤️ Đã thêm','ok');spawnConfetti();}save();const isFav=S.favorites.some(f=>f.id===S.curId);$('pbFav').classList.toggle('on',isFav);$('npFav').classList.toggle('on',isFav);document.querySelectorAll(`.track[data-id="${CSS.escape(id)}"] .t-act[data-act="fav"]`).forEach(b=>b.classList.toggle('on',S.favorites.some(f=>f.id===id)));if(S.view==='favorites')renderFavorites();if(S.view==='home')renderHome();if(S.view==='history')renderHistory();}
+function toggleFav(id,data){const i=S.favorites.findIndex(f=>f.id===id);if(i>=0){S.favorites.splice(i,1);toast('💔 Đã xoá');}else{S.favorites.unshift({...data,id});toast('❤️ Đã thêm','ok');spawnConfetti();}if(S.favorites.length>1000)S.favorites=S.favorites.slice(0,1000);save();const isFav=S.favorites.some(f=>f.id===S.curId);$('pbFav').classList.toggle('on',isFav);$('npFav').classList.toggle('on',isFav);document.querySelectorAll(`.track[data-id="${CSS.escape(id)}"] .t-act[data-act="fav"]`).forEach(b=>b.classList.toggle('on',S.favorites.some(f=>f.id===id)));if(S.view==='favorites')renderFavorites();if(S.view==='home')renderHome();if(S.view==='history')renderHistory();}
 function toggleFavCurrent(){if(!S.curInfo)return toast('Chưa phát bài nào');toggleFav(S.curId,S.curInfo);}
 function setRPTab(t){document.querySelectorAll('.rp-tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));document.querySelectorAll('.rp-view').forEach(x=>x.classList.remove('on'));$('rp-'+t).classList.add('on');if(t==='queue')renderQueue();else if(t==='lyrics'){S.lyricsTabActive=true;loadLyrics();}}
 function toggleRP(){$('rp').classList.toggle('on');}
@@ -1251,23 +1290,87 @@ let _smartNextRunning=false;
 async function smartNext(){if(_smartNextRunning)return;if(!isSmartAutoOn())return;_smartNextRunning=true;const queries=buildSmartQueries();for(const q of queries){const results=await smartSearch(q);const pick=pickSmartTrack(results);if(pick){toast(`🎯 ${pick.title.slice(0,40)}...`,'ok');_smartNextRunning=false;return playTrack(pick.id,pick);}}_smartNextRunning=false;toast('Không tìm được bài');}
 let _randomLoading=false;
 async function playRandomNow(){if(_randomLoading)return;_randomLoading=true;toast('🎲 Đang tìm bài khác...');const recent=new Set(RECENTLY_PLAYED);const favPool=S.favorites.filter(h=>!recent.has(h.id)&&h.id!==S.curId);const histPool=S.history.filter(h=>!recent.has(h.id)&&h.id!==S.curId);const combined=[...favPool,...histPool];if(combined.length>=3&&Math.random()<0.6){const pick=combined[Math.floor(Math.random()*combined.length)];toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}try{const queries=buildSmartQueries();for(const q of queries){const results=await smartSearch(q);const pick=pickSmartTrack(results);if(pick){toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}}}catch(e){}if(combined.length){const pick=combined[Math.floor(Math.random()*combined.length)];toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}_randomLoading=false;toast('Chưa có gì để đổi, nghe vài bài trước','err');}
+
+// ========== ⬅️ PATCH: PARTY SOCKET ==========
+function connectPartySocket(){
+  if(PARTY.socket)return;
+  if(typeof io==='undefined'){
+    console.warn('[Party] Socket.io chưa load — dùng polling fallback');
+    PARTY.pollFallback=true;
+    startPartyPoll();
+    return;
+  }
+  PARTY.socket=io({transports:['websocket','polling']});
+  PARTY.socket.on('connect',()=>{
+    PARTY.connected=true;
+    if(PARTY.code&&PARTY.sid){
+      PARTY.socket.emit('party_join',{code:PARTY.code,user:PARTY.name,sid:PARTY.sid});
+    }
+  });
+  PARTY.socket.on('disconnect',()=>{PARTY.connected=false;});
+  PARTY.socket.on('party_joined',d=>{
+    PARTY.code=d.code;PARTY.sid=d.sid;PARTY.isHost=d.is_host;
+    $('partyDot').style.display='block';
+    renderParty();
+  });
+  PARTY.socket.on('party_state',st=>handleParty(st));
+  PARTY.socket.on('party_chat',msg=>{
+    PARTY.chat.push(msg);
+    if(PARTY.chat.length>100)PARTY.chat.shift();
+    renderChat();
+  });
+  PARTY.socket.on('party_sync',d=>{
+    if(PARTY.isHost)return;
+    if(PARTY.playing?.id===S.curId&&audio.duration){
+      const diff=Math.abs(audio.currentTime-(d.position||0));
+      if(diff>2){PARTY.suppress=true;audio.currentTime=d.position;setTimeout(()=>PARTY.suppress=false,500);}
+    }
+  });
+  PARTY.socket.on('party_error',d=>toast(d.error||'Lỗi party','err'));
+}
+
+function disconnectPartySocket(){
+  if(PARTY.socket){
+    try{PARTY.socket.emit('party_leave',{code:PARTY.code,sid:PARTY.sid});}catch{}
+    try{PARTY.socket.disconnect();}catch{}
+    PARTY.socket=null;PARTY.connected=false;
+  }
+}
+
 function openParty(){const b=$('partyBody');if(!PARTY.code){b.innerHTML=`<div class="p-hero"><div class="p-hero-ic">🎧</div><div class="p-hero-t">Nghe nhạc cùng bạn bè</div><div class="p-hero-s">Tạo phòng và gửi mã cho bạn hoặc nhập mã để tham gia</div></div><input class="p-input" id="partyNameInput" placeholder="Tên của bạn..." value="${esc(PARTY.name||localStorage.getItem('nv_pname')||'')}" maxlength="20"><button class="p-btn" onclick="partyCreate()">✨ Tạo phòng mới</button><div class="p-or">HOẶC</div><input class="p-join" id="partyJoinInput" placeholder="ABC123" maxlength="6"><button class="p-btn" onclick="partyJoin()">Tham gia phòng</button>`;}else renderParty();$('partyPanel').classList.add('on');$('partyDot').style.display=PARTY.code?'block':'none';}
 function closeParty(){$('partyPanel').classList.remove('on');}
-function renderParty(){const b=$('partyBody');if(!PARTY.code){openParty();return;}const url=`${location.origin}/?party=${PARTY.code}`,isHost=PARTY.isHost,members=PARTY.members||[],queue=PARTY.queue||[];b.innerHTML=`<div class="p-code"><div class="p-code-top">📱 Quét QR để tham gia</div><div class="p-qr"><div id="qrHolder" style="min-height:180px;display:flex;align-items:center;justify-content:center"><div style="color:var(--tx3);font-size:12px">Đang tạo QR...</div></div></div><div class="p-code-block"><div class="p-code-lbl">Mã phòng</div><div class="p-code-val" onclick="copyPartyCode()">${PARTY.code}</div><div class="p-code-copy"><button class="p-copy-btn" onclick="copyPartyCode()">🔢 Copy mã</button><button class="p-copy-btn" onclick="copyPartyLink()">📋 Copy link</button></div></div><div class="p-hint">Gửi <b>mã</b> hoặc <b>QR</b> cho bạn bè để cùng nghe nhạc đồng bộ</div><div class="p-acts"><button class="danger" onclick="leaveParty()">🚪 Rời phòng</button></div></div><div class="p-status"><span class="pulse"></span> Đã kết nối · Sync 2s</div><div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">👥 Thành viên (${members.length})</div><div class="p-members">${members.length?members.map(m=>`<div class="m-chip ${m.name===PARTY.name?'me':''} ${m.name===PARTY.host?'host':''}">${m.name===PARTY.name?'👤':'🎧'} ${esc(m.name)}</div>`).join(''):'<div style="font-size:12px;color:var(--tx3)">Đang kết nối...</div>'}</div>${isHost?`<div class="p-role host">👑 <b>Bạn là chủ phòng</b><br>Bấm play bài hát → cả phòng cùng nghe.</div>`:''}${PARTY.playing?`<div class="p-np"><img class="p-np-art" src="${esc(PARTY.playing.thumb||'')}"><div class="p-np-i"><div class="p-np-l">▶️ Đang phát</div><div class="p-np-t">${esc(PARTY.playing.title||'')}</div><div class="p-np-a">${esc(PARTY.playing.channel||'')}</div></div></div>`:''}<div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">🎵 Hàng đợi chung (${queue.length})</div><div>${queue.length?queue.map((t,i)=>`<div class="p-qi"><img class="art" src="${esc(t.thumb||'')}"><div class="qi-info"><div class="qi-t">${esc(t.title)}</div><div class="qi-s">${esc(t.channel||'')}</div></div><div class="qi-a">${isHost?`<button onclick="partyPlayIdx(${i})"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>`:''}<button class="del" onclick="partyRemove(${i})"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div></div>`).join(''):'<div class="p-empty">Chưa có bài nào</div>'}</div><div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">💬 Chat</div><div class="p-chat"><div class="p-chat-m" id="pChatMsgs"></div><div class="p-chat-i"><input id="pChatInput" placeholder="Nhắn gì đó..." onkeydown="if(event.key==='Enter')partySendChat()"><button onclick="partySendChat()">Gửi</button></div></div>`;renderChat();drawPartyQR(url);}
+function renderParty(){const b=$('partyBody');if(!PARTY.code){openParty();return;}const url=`${location.origin}/?party=${PARTY.code}`,isHost=PARTY.isHost,members=PARTY.members||[],queue=PARTY.queue||[];b.innerHTML=`<div class="p-code"><div class="p-code-top">📱 Quét QR để tham gia</div><div class="p-qr"><div id="qrHolder" style="min-height:180px;display:flex;align-items:center;justify-content:center"><div style="color:var(--tx3);font-size:12px">Đang tạo QR...</div></div></div><div class="p-code-block"><div class="p-code-lbl">Mã phòng</div><div class="p-code-val" onclick="copyPartyCode()">${PARTY.code}</div><div class="p-code-copy"><button class="p-copy-btn" onclick="copyPartyCode()">🔢 Copy mã</button><button class="p-copy-btn" onclick="copyPartyLink()">📋 Copy link</button></div></div><div class="p-hint">Gửi <b>mã</b> hoặc <b>QR</b> cho bạn bè để cùng nghe nhạc đồng bộ</div><div class="p-acts"><button class="danger" onclick="leaveParty()">🚪 Rời phòng</button></div></div><div class="p-status"><span class="pulse"></span> Đã kết nối · ${PARTY.socket&&PARTY.connected?'WebSocket':'Polling'}</div><div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">👥 Thành viên (${members.length})</div><div class="p-members">${members.length?members.map(m=>`<div class="m-chip ${m.name===PARTY.name?'me':''} ${m.name===PARTY.host?'host':''}">${m.name===PARTY.name?'👤':'🎧'} ${esc(m.name)}</div>`).join(''):'<div style="font-size:12px;color:var(--tx3)">Đang kết nối...</div>'}</div>${isHost?`<div class="p-role host">👑 <b>Bạn là chủ phòng</b><br>Bấm play bài hát → cả phòng cùng nghe.</div>`:''}${PARTY.playing?`<div class="p-np"><img class="p-np-art" src="${esc(PARTY.playing.thumb||'')}"><div class="p-np-i"><div class="p-np-l">▶️ Đang phát</div><div class="p-np-t">${esc(PARTY.playing.title||'')}</div><div class="p-np-a">${esc(PARTY.playing.channel||'')}</div></div></div>`:''}<div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">🎵 Hàng đợi chung (${queue.length})</div><div>${queue.length?queue.map((t,i)=>`<div class="p-qi"><img class="art" src="${esc(t.thumb||'')}"><div class="qi-info"><div class="qi-t">${esc(t.title)}</div><div class="qi-s">${esc(t.channel||'')}</div></div><div class="qi-a">${isHost?`<button onclick="partyPlayIdx(${i})"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>`:''}<button class="del" onclick="partyRemove(${i})"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div></div>`).join(''):'<div class="p-empty">Chưa có bài nào</div>'}</div><div style="font-size:11px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.4px">💬 Chat</div><div class="p-chat"><div class="p-chat-m" id="pChatMsgs"></div><div class="p-chat-i"><input id="pChatInput" placeholder="Nhắn gì đó..." onkeydown="if(event.key==='Enter')partySendChat()"><button onclick="partySendChat()">Gửi</button></div></div>`;renderChat();drawPartyQR(url);}
 function drawPartyQR(url){if(_lastPartyCodeQR===PARTY.code)return;_qrRetryCount=0;_lastPartyCodeQR=PARTY.code;function tryDraw(){const holder=$('qrHolder');if(!holder)return;if(!window.QRious){_qrRetryCount++;if(_qrRetryCount<20){setTimeout(tryDraw,200);}else{holder.innerHTML='<div style="color:var(--err);font-size:12px;text-align:center;padding:20px">Không tải được QR<br><span style="color:var(--tx3);font-size:11px">Dùng mã phòng ở dưới</span></div>';}return;}try{holder.innerHTML='<canvas id="partyQr"></canvas>';requestAnimationFrame(()=>{const canvas=$('partyQr');if(!canvas)return;new QRious({element:canvas,value:url,size:170,background:'#ffffff',foreground:'#000000',level:'M',padding:12});});}catch(e){_qrRetryCount++;if(_qrRetryCount<5){setTimeout(tryDraw,300);}}}tryDraw();}
 function renderChat(){const w=$('pChatMsgs');if(!w)return;w.innerHTML=(PARTY.chat||[]).map(m=>`<div class="c-msg${m.user===PARTY.name?' me':''}"><strong>${esc(m.user)}</strong>${esc(m.text)}</div>`).join('');w.scrollTop=w.scrollHeight;}
-async function partyCreate(){const nameInput=$('partyNameInput'),name=(nameInput?.value||'').trim()||'Host';PARTY.name=name;localStorage.setItem('nv_pname',name);const b=$('partyBody');b.innerHTML=`<div class="p-hero"><div class="p-hero-ic" style="animation:pulse 1s infinite">✨</div><div class="p-hero-t">Đang tạo phòng...</div></div>`;try{const r=await fetch('/api/party/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:name})});const d=await r.json();if(d.error)throw new Error(d.error);PARTY.code=d.code;PARTY.sid=d.sid;PARTY.isHost=true;PARTY.members=[{name,sid:d.sid}];PARTY.queue=[];PARTY.chat=[];_lastPartyCodeQR=null;toast('✨ Đã tạo phòng '+d.code,'ok');startPartyPoll();renderParty();$('partyDot').style.display='block';}catch(e){b.innerHTML=`<div class="p-hero"><div class="p-hero-ic">😢</div><div class="p-hero-t">Tạo phòng thất bại</div><div class="p-hero-s">${esc(e.message)}</div></div><button class="p-btn" onclick="openParty()">↻ Thử lại</button>`;}}
-async function partyJoin(){const codeInput=$('partyJoinInput'),nameInput=$('partyNameInput'),code=codeInput?.value?.trim()?.toUpperCase(),name=(nameInput?.value||'').trim()||'Khách';if(!code||code.length<4)return toast('Nhập mã phòng (6 ký tự)');PARTY.name=name;localStorage.setItem('nv_pname',name);const b=$('partyBody');b.innerHTML=`<div class="p-hero"><div class="p-hero-ic" style="animation:pulse 1s infinite">🎧</div><div class="p-hero-t">Đang tham gia...</div></div>`;try{const r=await fetch('/api/party/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,user:name})});const d=await r.json();if(d.error)throw new Error(d.error);PARTY.code=d.code;PARTY.sid=d.sid;PARTY.isHost=false;PARTY.members=[];PARTY.queue=[];PARTY.chat=[];_lastPartyCodeQR=null;toast('🎧 Đã vào phòng '+d.code,'ok');startPartyPoll();renderParty();$('partyDot').style.display='block';}catch(e){b.innerHTML=`<div class="p-hero"><div class="p-hero-ic">😢</div><div class="p-hero-t">Không vào được</div><div class="p-hero-s">${esc(e.message)}</div></div><button class="p-btn" onclick="openParty()">↻ Thử lại</button>`;}}
-function startPartyPoll(){if(PARTY.pollTimer)clearInterval(PARTY.pollTimer);pollParty();PARTY.pollTimer=setInterval(pollParty,2000);}
-async function pollParty(){if(!PARTY.code||!PARTY.sid)return;try{const r=await fetch('/api/party/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,sid:PARTY.sid})});if(!r.ok){toast('Phòng đã đóng','err');leaveParty(true);return;}const st=await r.json();if(st.error){toast('Phòng đã đóng','err');leaveParty(true);return;}handleParty(st);}catch{}}
+async function partyCreate(){const nameInput=$('partyNameInput'),name=(nameInput?.value||'').trim()||'Host';PARTY.name=name;localStorage.setItem('nv_pname',name);const b=$('partyBody');b.innerHTML=`<div class="p-hero"><div class="p-hero-ic" style="animation:pulse 1s infinite">✨</div><div class="p-hero-t">Đang tạo phòng...</div></div>`;try{const r=await fetch('/api/party/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:name})});const d=await r.json();if(d.error)throw new Error(d.error);PARTY.code=d.code;PARTY.sid=d.sid;PARTY.isHost=true;PARTY.members=[{name,sid:d.sid}];PARTY.queue=[];PARTY.chat=[];_lastPartyCodeQR=null;toast('✨ Đã tạo phòng '+d.code,'ok');PARTY.pollFallback=false;connectPartySocket();renderParty();$('partyDot').style.display='block';}catch(e){b.innerHTML=`<div class="p-hero"><div class="p-hero-ic">😢</div><div class="p-hero-t">Tạo phòng thất bại</div><div class="p-hero-s">${esc(e.message)}</div></div><button class="p-btn" onclick="openParty()">↻ Thử lại</button>`;}}
+async function partyJoin(){const codeInput=$('partyJoinInput'),nameInput=$('partyNameInput'),code=codeInput?.value?.trim()?.toUpperCase(),name=(nameInput?.value||'').trim()||'Khách';if(!code||code.length<4)return toast('Nhập mã phòng (6 ký tự)');PARTY.name=name;localStorage.setItem('nv_pname',name);const b=$('partyBody');b.innerHTML=`<div class="p-hero"><div class="p-hero-ic" style="animation:pulse 1s infinite">🎧</div><div class="p-hero-t">Đang tham gia...</div></div>`;try{const r=await fetch('/api/party/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,user:name})});const d=await r.json();if(d.error)throw new Error(d.error);PARTY.code=d.code;PARTY.sid=d.sid;PARTY.isHost=false;PARTY.members=[];PARTY.queue=[];PARTY.chat=[];_lastPartyCodeQR=null;toast('🎧 Đã vào phòng '+d.code,'ok');PARTY.pollFallback=false;connectPartySocket();renderParty();$('partyDot').style.display='block';}catch(e){b.innerHTML=`<div class="p-hero"><div class="p-hero-ic">😢</div><div class="p-hero-t">Không vào được</div><div class="p-hero-s">${esc(e.message)}</div></div><button class="p-btn" onclick="openParty()">↻ Thử lại</button>`;}}
+function startPartyPoll(){if(PARTY.socket||PARTY.connected)return;if(PARTY.pollTimer)clearInterval(PARTY.pollTimer);pollParty();PARTY.pollTimer=setInterval(pollParty,3000);}
+async function pollParty(){if(!PARTY.code||!PARTY.sid)return;if(PARTY.socket&&PARTY.connected)return;try{const r=await fetch('/api/party/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,sid:PARTY.sid})});if(!r.ok){toast('Phòng đã đóng','err');leaveParty(true);return;}const st=await r.json();if(st.error){toast('Phòng đã đóng','err');leaveParty(true);return;}handleParty(st);}catch{}}
 function handleParty(st){const oldId=PARTY.playing?.id,oldQ=(PARTY.queue||[]).length,oldM=(PARTY.members||[]).length,oldCode=PARTY.code;PARTY.queue=st.queue||[];PARTY.members=st.members||[];PARTY.playing=st.playing;PARTY.host=st.host;PARTY.isPlaying=st.is_playing;PARTY.position=st.position;PARTY.chat=st.chat||[];if(!PARTY.code&&st.code){PARTY.code=st.code;_lastPartyCodeQR=null;}if(!PARTY.isHost&&st.playing?.id&&st.playing.id!==S.curId){playTrack(st.playing.id,st.playing);PARTY.suppress=true;setTimeout(()=>PARTY.suppress=false,3000);}if(!PARTY.isHost&&PARTY.playing?.id===S.curId&&audio.duration){const diff=Math.abs(audio.currentTime-st.position);if(diff>3){PARTY.suppress=true;audio.currentTime=st.position;setTimeout(()=>PARTY.suppress=false,500);}if(st.is_playing&&audio.paused){PARTY.suppress=true;audio.play().catch(()=>{});setTimeout(()=>PARTY.suppress=false,500);}else if(!st.is_playing&&!audio.paused){PARTY.suppress=true;audio.pause();setTimeout(()=>PARTY.suppress=false,500);}}if($('partyPanel').classList.contains('on')){const chg=(st.queue||[]).length!==oldQ||st.playing?.id!==oldId||(st.members||[]).length!==oldM||oldCode!==PARTY.code;if(chg)renderParty();else renderChat();}}
-async function leaveParty(silent){if(PARTY.pollTimer){clearInterval(PARTY.pollTimer);PARTY.pollTimer=null;}if(PARTY.code&&PARTY.sid){try{await fetch('/api/party/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,sid:PARTY.sid})});}catch{}}PARTY.code=null;PARTY.sid=null;PARTY.isHost=false;PARTY.queue=[];PARTY.members=[];PARTY.playing=null;PARTY.chat=[];_lastPartyCodeQR=null;$('partyDot').style.display='none';if(!silent)toast('Đã rời phòng');if($('partyPanel').classList.contains('on'))openParty();}
+async function leaveParty(silent){disconnectPartySocket();if(PARTY.pollTimer){clearInterval(PARTY.pollTimer);PARTY.pollTimer=null;}if(PARTY.code&&PARTY.sid){try{await fetch('/api/party/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,sid:PARTY.sid})});}catch{}}PARTY.code=null;PARTY.sid=null;PARTY.isHost=false;PARTY.queue=[];PARTY.members=[];PARTY.playing=null;PARTY.chat=[];_lastPartyCodeQR=null;$('partyDot').style.display='none';if(!silent)toast('Đã rời phòng');if($('partyPanel').classList.contains('on'))openParty();}
 function copyPartyLink(){if(!PARTY.code)return;navigator.clipboard.writeText(`${location.origin}/?party=${PARTY.code}`).then(()=>toast('📋 Đã copy link','ok'));}
 function copyPartyCode(){if(!PARTY.code)return;navigator.clipboard.writeText(PARTY.code).then(()=>toast('🔢 Đã copy mã','ok'));}
-async function partyRemove(i){try{await fetch('/api/party/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,idx:i})});pollParty();}catch{}}
+async function partyRemove(i){
+  if(PARTY.socket&&PARTY.connected){PARTY.socket.emit('party_remove',{code:PARTY.code,idx:i});}
+  else{try{await fetch('/api/party/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,idx:i})});pollParty();}catch{}}
+}
 async function partyPlayIdx(i){const t=PARTY.queue[i];if(!t)return;playTrack(t.id,t);}
-async function partySendChat(){const inp=$('pChatInput'),txt=inp?.value?.trim();if(!txt||!PARTY.code)return;try{await fetch('/api/party/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,user:PARTY.name,text:txt})});inp.value='';pollParty();}catch{}}
+async function partySendChat(){
+  const inp=$('pChatInput'),txt=inp?.value?.trim();
+  if(!txt||!PARTY.code)return;
+  inp.value='';
+  if(PARTY.socket&&PARTY.connected){PARTY.socket.emit('party_chat',{code:PARTY.code,user:PARTY.name,text:txt});}
+  else{try{await fetch('/api/party/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:PARTY.code,user:PARTY.name,text:txt})});pollParty();}catch{}}
+}
 (function(){const p=new URLSearchParams(location.search),code=p.get('party');if(code){const upper=code.toUpperCase();setTimeout(()=>{const name=PARTY.name||prompt('Nhập tên của bạn:')||'Khách';PARTY.name=name;openParty();setTimeout(()=>{const i=$('partyJoinInput');if(i)i.value=upper;const n=$('partyNameInput');if(n)n.value=name;setTimeout(partyJoin,100);},100);},500);history.replaceState(null,'',location.pathname);}})();
+
+// ⬅️ PATCH: ping last_seen mỗi 30s
+setInterval(()=>{
+  if(PARTY.socket&&PARTY.connected&&PARTY.code){
+    PARTY.socket.emit('party_ping',{code:PARTY.code,sid:PARTY.sid});
+  }
+},30000);
+
 function openModal(id){$(id).classList.add('on');if(id==='helpModal'){setTimeout(()=>{const el=$('smartAutoState');if(el)el.textContent=isSmartAutoOn()?'Bật':'Tắt';},50);}if(id==='cleanModal'){const d=getCleanDays(),lbl={0:'Tắt',1:'1 ngày',7:'7 ngày',30:'30 ngày',90:'90 ngày'};setTimeout(()=>{const el=$('cleanCurrent');if(el)el.textContent=lbl[d]||d+' ngày';},50);}}
 function closeModal(id){$(id).classList.remove('on');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.mbg.on').forEach(m=>m.classList.remove('on'));$('partyPanel').classList.remove('on');if($('videoOv').classList.contains('on'))closeVideo();return;}if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;switch(e.key){case' ':e.preventDefault();togglePlay();break;case'ArrowRight':if(audio.duration)audio.currentTime=Math.min(audio.duration,audio.currentTime+10);break;case'ArrowLeft':audio.currentTime=Math.max(0,audio.currentTime-10);break;case'ArrowUp':e.preventDefault();S.volume=Math.min(1,S.volume+0.05);audio.volume=S.volume;$('volSlider').value=S.volume;save();break;case'ArrowDown':e.preventDefault();S.volume=Math.max(0,S.volume-0.05);audio.volume=S.volume;$('volSlider').value=S.volume;save();break;case'm':case'M':toggleMute();break;case'f':case'F':toggleFavCurrent();break;case'n':case'N':playNext();break;case'p':case'P':playPrev();break;case'd':case'D':playRandomNow();break;case's':case'S':toggleShuffle();break;case'r':case'R':toggleLoop();break;case'v':case'V':openVideo();break;case'i':case'I':openInfoModal();break;case'/':e.preventDefault();$('q').focus();break;}});
@@ -1280,7 +1383,7 @@ initSpeed();
 initBoost();
 setupMediaSession();
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'),1400);
-console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'}`);
+console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'} · Socket.io: ${typeof io!=='undefined'?'✅':'❌'}`);
 </script>
 </body>
-  </html>
+      </html>
