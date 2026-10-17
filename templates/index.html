@@ -628,6 +628,55 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 .install-btn svg{width:16px;height:16px;fill:currentColor}
 @media(max-width:768px){.install-btn{bottom:190px;left:12px;font-size:11.5px;padding:9px 13px}}
 .eq-val.hot{color:var(--accent-2)}
+
+/* ===== VIEW MODE ===== */
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:499;opacity:0;pointer-events:none;transition:opacity .3s}
+.sb-overlay.on{opacity:1;pointer-events:auto;display:block}
+.menu-toggle{display:none!important}
+.vm-btn.on{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}
+
+@media(max-width:768px){
+  html.full-mode .menu-toggle{display:flex!important}
+  html.full-mode .sb{
+    display:flex!important;position:fixed;top:0;left:0;bottom:0;
+    width:270px;max-width:82vw;z-index:500;
+    transform:translateX(-100%);transition:transform .35s var(--ease);
+    border-radius:0 var(--r) var(--r) 0;
+    background:rgba(15,12,35,.98);backdrop-filter:blur(40px);
+    box-shadow:10px 0 40px rgba(0,0,0,.6);
+  }
+  html.full-mode .sb.open{transform:translateX(0)}
+  html.full-mode .sb .sb-nav{overflow-y:auto}
+  html.full-mode .sb .sb-pl{max-height:30vh}
+
+  html.full-mode .pb-r{
+    display:flex!important;position:absolute;
+    bottom:calc(100% + 6px);right:8px;
+    background:rgba(15,12,35,.96);backdrop-filter:blur(20px);
+    border:1px solid var(--br2);border-radius:14px;
+    padding:4px;gap:2px;
+    box-shadow:0 6px 24px rgba(0,0,0,.5);z-index:99;
+  }
+  html.full-mode .pb-r .vol{display:none}
+  html.full-mode .pb-r .pc{width:36px;height:36px}
+  html.full-mode .pb-r .pc svg{width:16px;height:16px}
+
+  html.full-mode .track-acts{opacity:1!important}
+  html.full-mode .tracks.grid .track-acts{opacity:1!important}
+}
+
+html.compact-mode .track-acts{opacity:0}
+html.compact-mode .track:hover .track-acts{opacity:1}
+html.compact-mode .np-extra{grid-template-columns:repeat(3,1fr)}
+html.compact-mode .np-extra .ne:nth-child(n+4){display:none}
+html.compact-mode .meteor,
+html.compact-mode .aurora,
+html.compact-mode .cursor-glow,
+html.compact-mode .confetti,
+html.compact-mode .stars3{display:none!important}
+html.compact-mode .track.playing .track-eq,
+html.compact-mode .rp.playing .np-art,
+html.compact-mode .player.playing .pb-art{animation-duration:60s!important}
 </style>
 </head>
 <body>
@@ -715,7 +764,15 @@ body{padding:0;padding-bottom:180px;cursor:auto}
         <input id="q" placeholder="Tìm bài hát, nghệ sĩ..." autocomplete="off">
       </div>
       <div class="tb-actions">
-        <button class="tb" onclick="toggleRP()" title="Bảng phải"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3V5zm2 2v10h14V7H5z"/></svg></button>
+        <button class="tb menu-toggle" onclick="toggleSidebar()" title="Menu">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+        </button>
+        <button class="tb vm-btn" id="vmBtn" onclick="openViewModeModal()" title="Chế độ xem">
+          <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        </button>
+        <button class="tb" onclick="toggleRP()" title="Bảng phải">
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v14H3V5zm2 2v10h14V7H5z"/></svg>
+        </button>
         <button class="tb" onclick="openModal('helpModal')" title="Phím tắt"><span>?</span></button>
       </div>
     </div>
@@ -813,6 +870,8 @@ body{padding:0;padding-bottom:180px;cursor:auto}
     </div>
   </aside>
 </div>
+
+<div class="sb-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
 
 <div class="player" id="player">
   <div class="pb-l" onclick="openInfoModal()">
@@ -916,6 +975,21 @@ body{padding:0;padding-bottom:180px;cursor:auto}
       <button class="sleep-b" onclick="setCleanDays(90)">90<small>ngày</small></button>
       <button class="sleep-b" onclick="setCleanDays(0)">Tắt</button>
       <button class="sleep-b" onclick="manualCleanHistory()">Xoá<small>ngay</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="viewModeModal" onclick="if(event.target===this)closeModal('viewModeModal')">
+  <div class="modal">
+    <button class="m-x" onclick="closeModal('viewModeModal')">✕</button>
+    <h2 class="m-h">📐 Chế độ hiển thị</h2>
+    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:16px;line-height:1.6">
+      Chọn giao diện phù hợp để không bị ẩn chức năng
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px" id="viewModeList"></div>
+    <div style="font-size:11.5px;color:var(--tx3);margin-top:14px;line-height:1.7;padding:12px;background:var(--s2);border-radius:12px">
+      💡 <b style="color:var(--accent)">Đầy đủ</b>: hiện nút ☰ (mở sidebar), player hiện thêm nút EQ/Tốc độ/Video/Info<br>
+      💡 <b style="color:var(--accent)">Gọn</b>: ẩn bớt, tắt animations, tiết kiệm pin
     </div>
   </div>
 </div>
@@ -1164,7 +1238,6 @@ let hlsInstance=null;
 const audio=$('audio');
 audio.volume=S.volume;
 
-// ⬅️ PATCH: PRELOAD TRACK
 let _preloadAudio=null,_preloadedId=null;
 function preloadNext(){
   if(!S.curId)return;
@@ -1211,7 +1284,6 @@ function toggleMute(){audio.muted=!audio.muted;$('volSlider').value=audio.muted?
 $('volSlider').addEventListener('input',e=>{S.volume=parseFloat(e.target.value);audio.volume=S.volume;audio.muted=false;save();});
 $('volSlider').value=S.volume;
 audio.addEventListener('timeupdate',()=>{if(!audio.duration)return;const pct=(audio.currentTime/audio.duration*100)+'%';$('progressFill').style.width=pct;$('npProgF').style.width=pct;$('timeCur').textContent=fmt(audio.currentTime);$('timeDur').textContent=fmt(audio.duration);$('npTCur').textContent=fmt(audio.currentTime);$('npTDur').textContent=fmt(audio.duration);updateMediaPosition();
-  // ⬅️ PATCH: preload khi còn 15s
   if(audio.duration-audio.currentTime<15)preloadNext();
 });
 audio.addEventListener('play',()=>{$('playBtn').classList.remove('load');$('playIcon').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('npPIc').innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';$('player').classList.add('playing');$('rp').classList.add('playing');});
@@ -1221,7 +1293,6 @@ audio.addEventListener('seeked',()=>{lyricsActiveIdx=-1;});
 audio.addEventListener('loadedmetadata',()=>{lyricsActiveIdx=-1;_preloadedId=null;});
 $('progressBar').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();if(audio.duration)audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;});
 
-// ⬅️ PATCH: party sync heartbeat 5s
 let _lastPartySync=0;
 audio.addEventListener('timeupdate',()=>{
   if(!PARTY.code||!PARTY.isHost||PARTY.suppress)return;
@@ -1291,7 +1362,7 @@ async function smartNext(){if(_smartNextRunning)return;if(!isSmartAutoOn())retur
 let _randomLoading=false;
 async function playRandomNow(){if(_randomLoading)return;_randomLoading=true;toast('🎲 Đang tìm bài khác...');const recent=new Set(RECENTLY_PLAYED);const favPool=S.favorites.filter(h=>!recent.has(h.id)&&h.id!==S.curId);const histPool=S.history.filter(h=>!recent.has(h.id)&&h.id!==S.curId);const combined=[...favPool,...histPool];if(combined.length>=3&&Math.random()<0.6){const pick=combined[Math.floor(Math.random()*combined.length)];toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}try{const queries=buildSmartQueries();for(const q of queries){const results=await smartSearch(q);const pick=pickSmartTrack(results);if(pick){toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}}}catch(e){}if(combined.length){const pick=combined[Math.floor(Math.random()*combined.length)];toast('🎲 '+pick.title.slice(0,35)+'...','ok');_randomLoading=false;return playTrack(pick.id,pick);}_randomLoading=false;toast('Chưa có gì để đổi, nghe vài bài trước','err');}
 
-// ========== ⬅️ PATCH: PARTY SOCKET ==========
+// ========== PARTY SOCKET ==========
 function connectPartySocket(){
   if(PARTY.socket)return;
   if(typeof io==='undefined'){
@@ -1364,7 +1435,6 @@ async function partySendChat(){
 }
 (function(){const p=new URLSearchParams(location.search),code=p.get('party');if(code){const upper=code.toUpperCase();setTimeout(()=>{const name=PARTY.name||prompt('Nhập tên của bạn:')||'Khách';PARTY.name=name;openParty();setTimeout(()=>{const i=$('partyJoinInput');if(i)i.value=upper;const n=$('partyNameInput');if(n)n.value=name;setTimeout(partyJoin,100);},100);},500);history.replaceState(null,'',location.pathname);}})();
 
-// ⬅️ PATCH: ping last_seen mỗi 30s
 setInterval(()=>{
   if(PARTY.socket&&PARTY.connected&&PARTY.code){
     PARTY.socket.emit('party_ping',{code:PARTY.code,sid:PARTY.sid});
@@ -1382,8 +1452,90 @@ renderQueue();
 initSpeed();
 initBoost();
 setupMediaSession();
+
+// ========== VIEW MODE ==========
+const VIEW_MODE_KEY='nv_view_mode';
+const VIEW_MODES=[
+  {id:'auto',icon:'🔄',name:'Tự động',desc:'Tự điều chỉnh theo kích thước màn hình'},
+  {id:'full',icon:'🖥️',name:'Đầy đủ',desc:'Hiện tất cả chức năng (drawer menu + đủ nút player)'},
+  {id:'compact',icon:'📱',name:'Gọn gàng',desc:'Ẩn bớt, tắt hiệu ứng, tiết kiệm pin'}
+];
+let _viewMode=localStorage.getItem(VIEW_MODE_KEY)||'auto';
+
+function applyViewMode(mode){
+  if(mode)_viewMode=mode;
+  localStorage.setItem(VIEW_MODE_KEY,_viewMode);
+  document.documentElement.classList.remove('full-mode','compact-mode');
+  if(_viewMode==='full')document.documentElement.classList.add('full-mode');
+  if(_viewMode==='compact')document.documentElement.classList.add('compact-mode');
+  const btn=$('vmBtn');
+  if(btn){
+    btn.classList.toggle('on',_viewMode!=='auto');
+    const vm=VIEW_MODES.find(v=>v.id===_viewMode);
+    btn.title='Chế độ: '+(vm?.name||'Tự động');
+  }
+}
+
+function openViewModeModal(){
+  const list=$('viewModeList');
+  if(!list)return;
+  list.innerHTML=VIEW_MODES.map(m=>`
+    <button onclick="applyViewMode('${m.id}');closeModal('viewModeModal');toast('${m.icon} ${m.name}','ok')"
+      style="text-align:left;padding:14px 16px;border-radius:12px;
+        background:${m.id===_viewMode?'var(--accent-soft)':'var(--s2)'};
+        border:1.5px solid ${m.id===_viewMode?'var(--accent)':'var(--br)'};
+        display:flex;gap:12px;align-items:center;transition:all .2s;cursor:pointer">
+      <span style="font-size:26px;flex-shrink:0">${m.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px;color:var(--tx);display:flex;align-items:center;gap:6px">
+          ${m.name}${m.id===_viewMode?'<span style="color:var(--accent);font-size:14px">✓</span>':''}
+        </div>
+        <div style="font-size:11.5px;color:var(--tx3);margin-top:3px;line-height:1.4">${m.desc}</div>
+      </div>
+    </button>
+  `).join('');
+  openModal('viewModeModal');
+}
+
+function toggleSidebar(){
+  const sb=document.querySelector('.sb');
+  const ov=$('sbOverlay');
+  if(!sb)return;
+  sb.classList.toggle('open');
+  ov?.classList.toggle('on');
+}
+
+const _origNavTo=navTo;
+navTo=function(v){
+  _origNavTo(v);
+  const sb=document.querySelector('.sb');
+  const ov=$('sbOverlay');
+  if(sb?.classList.contains('open')){
+    sb.classList.remove('open');
+    ov?.classList.remove('on');
+  }
+};
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    const sb=document.querySelector('.sb');
+    const ov=$('sbOverlay');
+    if(sb?.classList.contains('open')){
+      sb.classList.remove('open');
+      ov?.classList.remove('on');
+    }
+  }
+});
+
+applyViewMode();
+
+if(window.innerWidth<768&&!localStorage.getItem('nv_vm_hint')){
+  localStorage.setItem('nv_vm_hint','1');
+  setTimeout(()=>toast('💡 Bấm 📐 để mở khóa chức năng đang ẩn',''),3000);
+}
+
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'),1400);
-console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'} · Socket.io: ${typeof io!=='undefined'?'✅':'❌'}`);
+console.log(`[Nova] ${isMobileDevice?'Mobile':'Desktop'} · ${isLowEnd?'Low-end':'Normal'} · Socket.io: ${typeof io!=='undefined'?'✅':'❌'} · ViewMode: ${_viewMode}`);
 </script>
 </body>
-      </html>
+    </html>
