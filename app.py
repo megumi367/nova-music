@@ -6,7 +6,6 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-# ⬅️ PATCH #1: SocketIO init
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading',
                     ping_timeout=20, ping_interval=10)
 
@@ -36,7 +35,7 @@ try:
 except: pass
 
 
-# ============ ⬅️ PATCH #2: DISK CACHE ============
+# ============ DISK CACHE ============
 CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stream_cache.pkl')
 _cache_lock = threading.Lock()
 
@@ -232,7 +231,6 @@ def extract_audio(vid, source='youtube', mode='audio', timeout=30):
     }
 
 
-# ⬅️ PATCH #3: get_cached dùng lock + evict
 def get_cached(vid, source='youtube', mode='audio'):
     key = f"{source}:{mode}:{vid}"
     now = time.time()
@@ -324,7 +322,9 @@ def ping():
 
 
 @app.route('/')
-def index(): return send_from_directory('templates', 'index.html')
+def index():
+    return send_from_directory('templates', 'index.html',
+        ), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
 @app.route('/api/search')
@@ -624,7 +624,6 @@ def clean_room(code):
         del PARTY_ROOMS[code]
 
 
-# ============ ⬅️ PATCH #4: WEBSOCKET PARTY ============
 def _room_state(code):
     room = PARTY_ROOMS.get(code)
     if not room:
@@ -891,24 +890,49 @@ def party_chat():
         return jsonify({'ok': False}), 500
 
 
+# ============ MANIFEST (no-cache) ============
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
         'name': 'Nova Music', 'short_name': 'Nova', 'start_url': '/',
         'display': 'standalone', 'background_color': '#07030e',
         'theme_color': '#a78bfa', 'orientation': 'portrait'
-    })
+    }), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
+# ============ SERVICE WORKER (không cache HTML) ============
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v5';const SH=['/','/manifest.json'];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(SH)).then(()=>self.skipWaiting()))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);
-if(u.pathname.startsWith('/static/')||u.pathname==='/'||u.pathname==='/manifest.json'){
-e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{const cl=r.clone();caches.open(C).then(cc=>cc.put(e.request,cl));return r})));}});"""
-    return Response(s, mimetype='application/javascript')
+    s = """const C='nova-v9';
+self.addEventListener('install',e=>{self.skipWaiting()});
+self.addEventListener('activate',e=>{
+  e.waitUntil(
+    caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))
+    .then(()=>self.clients.claim())
+  );
+});
+self.addEventListener('fetch',e=>{
+  const u=new URL(e.request.url);
+  if(u.pathname==='/'||u.pathname.endsWith('.html')){
+    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
+    return;
+  }
+  if(u.pathname==='/manifest.json'||u.pathname.startsWith('/static/')){
+    e.respondWith(
+      caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
+        const cl=r.clone();
+        caches.open(C).then(cc=>cc.put(e.request,cl));
+        return r;
+      }))
+    );
+  }
+});
+self.addEventListener('message',e=>{
+  if(e.data==='SKIP_WAITING')self.skipWaiting();
+});
+"""
+    return Response(s, mimetype='application/javascript',
+                    headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
 
 
 @app.route('/api/debug')
@@ -922,7 +946,6 @@ def debug():
     })
 
 
-# ⬅️ PATCH #5: socketio.run
 if __name__ == '__main__':
     import yt_dlp as y
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
