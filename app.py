@@ -3,7 +3,7 @@ import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, b
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 try:
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -722,32 +722,79 @@ def party_chat():
 
 # ============ PWA ICON GENERATOR ============
 def _render_nova_icon(size):
-    if HAS_PIL:
-        img = Image.new('RGBA', (size, size), (0,0,0,0))
+    if not HAS_PIL: return None
+    try:
+        img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        cx = cy = size // 2
-        r = size // 2 - 2
-        for i in range(r, 0, -1):
-            t = i / r
-            rr = int(167 * (1-t) + 124 * t)
-            gg = int(139 * (1-t) + 58 * t)
-            bb = int(250 * (1-t) + 237 * t)
-            draw.ellipse([cx-i, cy-i, cx+i, cy+i], fill=(rr, gg, bb, 255))
+        cx, cy = size // 2, size // 2
+
+        # 1. Nền
+        draw.ellipse([0, 0, size, size], fill=(10, 5, 20, 255))
+
+        # 2. Vòng hào quang
+        ring_w = max(2, int(size * 0.02))
+        r_outer = int(size * 0.42)
+        draw.ellipse([cx-r_outer, cy-r_outer, cx+r_outer, cy+r_outer], outline=(167, 139, 250, 150), width=ring_w)
+        
+        r_inner = int(size * 0.35)
+        draw.ellipse([cx-r_inner, cy-r_inner, cx+r_inner, cy+r_inner], outline=(236, 72, 153, 100), width=max(1, int(size*0.01)))
+
+        # 3. Bóng người
+        shoulder_w = int(size * 0.32)
+        shoulder_y = int(size * 0.75)
+        draw.polygon([
+            (cx - shoulder_w, shoulder_y),
+            (cx + shoulder_w, shoulder_y),
+            (cx + int(size*0.25), size),
+            (cx - int(size*0.25), size)
+        ], fill=(0, 0, 0, 255))
+        neck_w = int(size * 0.08)
+        draw.rectangle([cx-neck_w, int(size*0.6), cx+neck_w, shoulder_y], fill=(0, 0, 0, 255))
+        head_r = int(size * 0.12)
+        draw.ellipse([cx-head_r, int(size*0.65)-head_r, cx+head_r, int(size*0.65)+head_r], fill=(0, 0, 0, 255))
+
+        # 4. Ngôi sao (có Glow)
+        glow = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        g_draw = ImageDraw.Draw(glow)
         import math
-        def draw_star(cx, cy, outer, inner, fill):
+        def draw_star(dr, cx, cy, outer_r, inner_r, color):
             pts = []
-            for k in range(8):
-                ang = (math.pi / 4) * k - math.pi / 2
-                r0 = outer if k % 2 == 0 else inner
-                pts.append((cx + r0 * math.cos(ang), cy + r0 * math.sin(ang)))
-            draw.polygon(pts, fill=fill)
-        draw_star(cx, cy, int(size * 0.32), int(size * 0.10), (255,255,255,255))
-        draw.ellipse([cx-int(size*0.04), cy-int(size*0.04), cx+int(size*0.04), cy+int(size*0.04)], fill=(255,255,255,255))
+            for i in range(8):
+                angle = math.radians(i * 45 - 90)
+                r = outer_r if i % 2 == 0 else inner_r
+                pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+            dr.polygon(pts, fill=color)
+
+        draw_star(g_draw, cx, cy, int(size*0.28), int(size*0.05), (167, 139, 250, 255))
+        glow = glow.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.04)))
+        img = Image.alpha_composite(img, glow)
+        
+        draw = ImageDraw.Draw(img)
+        draw_star(draw, cx, cy, int(size*0.25), int(size*0.04), (255, 255, 255, 255))
+        draw.ellipse([cx-int(size*0.04), cy-int(size*0.04), cx+int(size*0.04), cy+int(size*0.04)], fill=(255, 255, 255, 255))
+
+        # 5. Chữ NOVA
+        if size >= 100:
+            try:
+                font_size = int(size * 0.1)
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    font = ImageFont.load_default()
+                text = "NOVA"
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_w = bbox[2] - bbox[0]
+                text_h = bbox[3] - bbox[1]
+                draw.text((cx - text_w // 2, int(size * 0.82) - text_h // 2), text, font=font, fill=(167, 139, 250, 255))
+            except: pass
+
         import io
         buf = io.BytesIO()
         img.save(buf, format='PNG', optimize=True)
         return buf.getvalue()
-    return None
+    except Exception as e:
+        print(f"Lỗi vẽ icon: {e}")
+        return None
 
 
 @app.route('/icon-<int:size>.png')
@@ -768,72 +815,27 @@ def pwa_icon_svg():
     svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 <defs>
   <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#a78bfa"/>
-    <stop offset="100%" stop-color="#7c3aed"/>
+    <stop offset="0%" stop-color="#1c0b3d"/>
+    <stop offset="100%" stop-color="#05020a"/>
   </radialGradient>
-  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="12" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
 </defs>
-<rect width="512" height="512" rx="100" fill="url(#bg)"/>
-<circle cx="256" cy="256" r="180" fill="none" stroke="#fff" stroke-width="8" opacity="0.15"/>
-<circle cx="256" cy="256" r="140" fill="none" stroke="#fff" stroke-width="6" opacity="0.25" stroke-dasharray="12 20"/>
+<circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+<circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="6" filter="url(#glow)" opacity="0.8"/>
+<circle cx="256" cy="256" r="170" fill="none" stroke="#ec4899" stroke-width="3" stroke-dasharray="15 25" opacity="0.6"/>
+<path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
+<rect x="236" y="250" width="40" height="60" fill="#000"/>
+<ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
 <g filter="url(#glow)">
-  <path d="M256 90 L270 240 L256 260 L242 240 Z" fill="#fff"/>
-  <path d="M256 422 L270 272 L256 252 L242 272 Z" fill="#fff"/>
-  <path d="M90 256 L240 270 L260 256 L240 242 Z" fill="#fff"/>
-  <path d="M422 256 L272 270 L252 256 L272 242 Z" fill="#fff"/>
+  <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" opacity="0.9"/>
+  <path d="M 256 130 L 275 235 L 380 256 L 275 277 L 256 380 L 237 277 L 132 256 L 237 235 Z" fill="#a78bfa"/>
 </g>
-<circle cx="256" cy="256" r="20" fill="#fff"/>
+<circle cx="256" cy="256" r="12" fill="#fff" filter="url(#glow)"/>
 </svg>'''
-    return Response(svg, mimetype='image/svg+xml', headers={
-        'Cache-Control': 'public, max-age=604800',
-    })
-
-
-@app.route('/screenshot-wide.png')
-def pwa_screenshot_wide():
-    if not HAS_PIL: return "No Pillow", 404
-    w, h = 1280, 720
-    img = Image.new('RGB', (w, h), (2, 1, 10))
-    draw = ImageDraw.Draw(img)
-    for y in range(h):
-        t = y / h
-        draw.line([(0,y),(w,y)], fill=(int(2+30*t), int(1+15*t), int(10+40*t)))
-    draw.rectangle([20, 20, 250, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
-    draw.rectangle([270, 20, w-360, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
-    draw.rectangle([w-340, 20, w-20, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
-    draw.rectangle([20, h-120, w-20, h-20], fill=(20,15,45), outline=(167,139,250), width=2)
-    draw.text((40, 40), "NOVA · Music Universe", fill=(167,139,250))
-    draw.text((40, 80), "Search · Stream · Party", fill=(120,110,180))
-    import io
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    return Response(buf.getvalue(), mimetype='image/png')
-
-
-@app.route('/screenshot-narrow.png')
-def pwa_screenshot_narrow():
-    if not HAS_PIL: return "No Pillow", 404
-    w, h = 720, 1280
-    img = Image.new('RGB', (w, h), (2, 1, 10))
-    draw = ImageDraw.Draw(img)
-    for y in range(h):
-        t = y / h
-        draw.line([(0,y),(w,y)], fill=(int(2+30*t), int(1+15*t), int(10+40*t)))
-    draw.rectangle([20, 20, w-20, 160], fill=(15,12,35), outline=(50,40,90), width=2)
-    draw.text((40, 60), "NOVA", fill=(167,139,250))
-    draw.text((40, 100), "Music Universe", fill=(120,110,180))
-    for i in range(3):
-        y0 = 200 + i * 180
-        draw.rectangle([20, y0, w-20, y0+150], fill=(20,15,45), outline=(50,40,90), width=2)
-        draw.ellipse([40, y0+20, 140, y0+120], fill=(60,40,120))
-        draw.text((160, y0+40), f"Track {i+1}", fill=(220,210,255))
-        draw.text((160, y0+90), "Artist", fill=(120,110,180))
-    draw.rectangle([20, h-140, w-20, h-20], fill=(20,15,45), outline=(167,139,250), width=2)
-    draw.ellipse([w//2-40, h-110, w//2+40, h-30], fill=(167,139,250))
-    import io
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    return Response(buf.getvalue(), mimetype='image/png')
+    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
 
 
 @app.route('/manifest.json')
@@ -841,7 +843,7 @@ def manifest():
     data = {
         'name': 'Nova Music Universe',
         'short_name': 'Nova',
-        'description': 'Nghe nhạc YouTube · SoundCloud · TikTok, không quảng cáo, không cần đăng ký',
+        'description': 'Nghe nhạc YouTube · SoundCloud · TikTok',
         'start_url': '/?source=pwa',
         'scope': '/',
         'display': 'standalone',
@@ -857,19 +859,12 @@ def manifest():
             {'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml', 'purpose': 'any maskable'},
             {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
             {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'maskable'},
-            {'src': '/icon-256.png', 'sizes': '256x256', 'type': 'image/png'},
-            {'src': '/icon-384.png', 'sizes': '384x384', 'type': 'image/png'},
             {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
             {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
-        ],
-        'screenshots': [
-            {'src': '/screenshot-narrow.png', 'sizes': '720x1280', 'type': 'image/png', 'form_factor': 'narrow', 'label': 'Nova Music - mobile'},
-            {'src': '/screenshot-wide.png', 'sizes': '1280x720', 'type': 'image/png', 'form_factor': 'wide', 'label': 'Nova Music - desktop'},
         ],
         'shortcuts': [
             {'name': 'Tìm nhạc', 'short_name': 'Search', 'url': '/?nav=search', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
             {'name': 'Nghe chung', 'short_name': 'Party', 'url': '/?nav=party', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
-            {'name': 'Yêu thích', 'short_name': 'Favorites', 'url': '/?nav=favorites', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
         ],
     }
     return jsonify(data), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
@@ -877,7 +872,7 @@ def manifest():
 
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v14';
+    s = """const C='nova-v15';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -891,50 +886,25 @@ self.addEventListener('fetch',e=>{
     e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
     return;
   }
-  if(u.pathname.startsWith('/icon-')||u.pathname==='/icon.svg'||u.pathname.startsWith('/screenshot-')){
-    e.respondWith(
-      caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
-        const cl=r.clone();
-        caches.open(C).then(cc=>cc.put(e.request,cl));
-        return r;
-      }))
-    );
+  if(u.pathname.startsWith('/icon-')||u.pathname==='/icon.svg'){
+    e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
+      const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;
+    })));
     return;
   }
   if(u.pathname==='/manifest.json'||u.pathname.startsWith('/static/')){
-    e.respondWith(
-      caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
-        const cl=r.clone();
-        caches.open(C).then(cc=>cc.put(e.request,cl));
-        return r;
-      }))
-    );
+    e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
+      const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;
+    })));
   }
 });
-self.addEventListener('message',e=>{
-  if(e.data==='SKIP_WAITING')self.skipWaiting();
-});
+self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting();});
 """
-    return Response(s, mimetype='application/javascript',
-                    headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
-
-
-@app.route('/api/debug')
-def debug():
-    import yt_dlp as y
-    return jsonify({
-        'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
-        'cookies': bool(COOKIES_FILE),
-        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
-        'pillow': HAS_PIL,
-    })
+    return Response(s, mimetype='application/javascript', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
 
 
 if __name__ == '__main__':
     import yt_dlp as y
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
-    print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
-    print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
-    print(f"   Pillow: {'✅' if HAS_PIL else '⚠️ (icon sẽ dùng SVG fallback)'}")
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
