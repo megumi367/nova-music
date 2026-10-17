@@ -2,6 +2,12 @@ from flask import Flask, request, jsonify, Response, stream_with_context, send_f
 import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
+try:
+    from PIL import Image, ImageDraw
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
@@ -51,13 +57,8 @@ def run_to(fn, timeout=30, *args):
 
 
 YT_CLIENTS = [
-    ['ios'],
-    ['web_embedded'],
-    ['android_vr'],
-    ['tv_embedded'],
-    ['mweb'],
-    ['web_safari'],
-    ['android'],
+    ['ios'], ['web_embedded'], ['android_vr'], ['tv_embedded'],
+    ['mweb'], ['web_safari'], ['android'],
 ]
 
 
@@ -273,7 +274,6 @@ def ping():
     return 'pong', 200
 
 
-# ⬅️ FIX 1: Route / no-cache
 @app.route('/')
 def index():
     return send_from_directory('templates', 'index.html'), 200, {
@@ -720,20 +720,164 @@ def party_chat():
         return jsonify({'ok': False}), 500
 
 
-# ⬅️ FIX 2: Manifest no-cache
+# ============ PWA ICON GENERATOR ============
+def _render_nova_icon(size):
+    if HAS_PIL:
+        img = Image.new('RGBA', (size, size), (0,0,0,0))
+        draw = ImageDraw.Draw(img)
+        cx = cy = size // 2
+        r = size // 2 - 2
+        for i in range(r, 0, -1):
+            t = i / r
+            rr = int(167 * (1-t) + 124 * t)
+            gg = int(139 * (1-t) + 58 * t)
+            bb = int(250 * (1-t) + 237 * t)
+            draw.ellipse([cx-i, cy-i, cx+i, cy+i], fill=(rr, gg, bb, 255))
+        import math
+        def draw_star(cx, cy, outer, inner, fill):
+            pts = []
+            for k in range(8):
+                ang = (math.pi / 4) * k - math.pi / 2
+                r0 = outer if k % 2 == 0 else inner
+                pts.append((cx + r0 * math.cos(ang), cy + r0 * math.sin(ang)))
+            draw.polygon(pts, fill=fill)
+        draw_star(cx, cy, int(size * 0.32), int(size * 0.10), (255,255,255,255))
+        draw.ellipse([cx-int(size*0.04), cy-int(size*0.04), cx+int(size*0.04), cy+int(size*0.04)], fill=(255,255,255,255))
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', optimize=True)
+        return buf.getvalue()
+    return None
+
+
+@app.route('/icon-<int:size>.png')
+def pwa_icon_png(size):
+    if size not in (96, 128, 144, 152, 180, 192, 256, 384, 512):
+        return "Bad size", 404
+    data = _render_nova_icon(size)
+    if data is None:
+        return pwa_icon_svg()
+    return Response(data, mimetype='image/png', headers={
+        'Cache-Control': 'public, max-age=604800',
+        'Content-Length': str(len(data)),
+    })
+
+
+@app.route('/icon.svg')
+def pwa_icon_svg():
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#a78bfa"/>
+    <stop offset="100%" stop-color="#7c3aed"/>
+  </radialGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="512" height="512" rx="100" fill="url(#bg)"/>
+<circle cx="256" cy="256" r="180" fill="none" stroke="#fff" stroke-width="8" opacity="0.15"/>
+<circle cx="256" cy="256" r="140" fill="none" stroke="#fff" stroke-width="6" opacity="0.25" stroke-dasharray="12 20"/>
+<g filter="url(#glow)">
+  <path d="M256 90 L270 240 L256 260 L242 240 Z" fill="#fff"/>
+  <path d="M256 422 L270 272 L256 252 L242 272 Z" fill="#fff"/>
+  <path d="M90 256 L240 270 L260 256 L240 242 Z" fill="#fff"/>
+  <path d="M422 256 L272 270 L252 256 L272 242 Z" fill="#fff"/>
+</g>
+<circle cx="256" cy="256" r="20" fill="#fff"/>
+</svg>'''
+    return Response(svg, mimetype='image/svg+xml', headers={
+        'Cache-Control': 'public, max-age=604800',
+    })
+
+
+@app.route('/screenshot-wide.png')
+def pwa_screenshot_wide():
+    if not HAS_PIL: return "No Pillow", 404
+    w, h = 1280, 720
+    img = Image.new('RGB', (w, h), (2, 1, 10))
+    draw = ImageDraw.Draw(img)
+    for y in range(h):
+        t = y / h
+        draw.line([(0,y),(w,y)], fill=(int(2+30*t), int(1+15*t), int(10+40*t)))
+    draw.rectangle([20, 20, 250, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
+    draw.rectangle([270, 20, w-360, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
+    draw.rectangle([w-340, 20, w-20, h-140], fill=(15,12,35), outline=(50,40,90), width=2)
+    draw.rectangle([20, h-120, w-20, h-20], fill=(20,15,45), outline=(167,139,250), width=2)
+    draw.text((40, 40), "NOVA · Music Universe", fill=(167,139,250))
+    draw.text((40, 80), "Search · Stream · Party", fill=(120,110,180))
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return Response(buf.getvalue(), mimetype='image/png')
+
+
+@app.route('/screenshot-narrow.png')
+def pwa_screenshot_narrow():
+    if not HAS_PIL: return "No Pillow", 404
+    w, h = 720, 1280
+    img = Image.new('RGB', (w, h), (2, 1, 10))
+    draw = ImageDraw.Draw(img)
+    for y in range(h):
+        t = y / h
+        draw.line([(0,y),(w,y)], fill=(int(2+30*t), int(1+15*t), int(10+40*t)))
+    draw.rectangle([20, 20, w-20, 160], fill=(15,12,35), outline=(50,40,90), width=2)
+    draw.text((40, 60), "NOVA", fill=(167,139,250))
+    draw.text((40, 100), "Music Universe", fill=(120,110,180))
+    for i in range(3):
+        y0 = 200 + i * 180
+        draw.rectangle([20, y0, w-20, y0+150], fill=(20,15,45), outline=(50,40,90), width=2)
+        draw.ellipse([40, y0+20, 140, y0+120], fill=(60,40,120))
+        draw.text((160, y0+40), f"Track {i+1}", fill=(220,210,255))
+        draw.text((160, y0+90), "Artist", fill=(120,110,180))
+    draw.rectangle([20, h-140, w-20, h-20], fill=(20,15,45), outline=(167,139,250), width=2)
+    draw.ellipse([w//2-40, h-110, w//2+40, h-30], fill=(167,139,250))
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return Response(buf.getvalue(), mimetype='image/png')
+
+
 @app.route('/manifest.json')
 def manifest():
-    return jsonify({
-        'name': 'Nova Music', 'short_name': 'Nova', 'start_url': '/',
-        'display': 'standalone', 'background_color': '#07030e',
-        'theme_color': '#a78bfa', 'orientation': 'portrait'
-    }), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+    data = {
+        'name': 'Nova Music Universe',
+        'short_name': 'Nova',
+        'description': 'Nghe nhạc YouTube · SoundCloud · TikTok, không quảng cáo, không cần đăng ký',
+        'start_url': '/?source=pwa',
+        'scope': '/',
+        'display': 'standalone',
+        'display_override': ['window-controls-overlay', 'standalone', 'minimal-ui'],
+        'orientation': 'portrait-primary',
+        'background_color': '#02010a',
+        'theme_color': '#a78bfa',
+        'lang': 'vi',
+        'dir': 'ltr',
+        'categories': ['music', 'entertainment'],
+        'prefer_related_applications': False,
+        'icons': [
+            {'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml', 'purpose': 'any maskable'},
+            {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'maskable'},
+            {'src': '/icon-256.png', 'sizes': '256x256', 'type': 'image/png'},
+            {'src': '/icon-384.png', 'sizes': '384x384', 'type': 'image/png'},
+            {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
+        ],
+        'screenshots': [
+            {'src': '/screenshot-narrow.png', 'sizes': '720x1280', 'type': 'image/png', 'form_factor': 'narrow', 'label': 'Nova Music - mobile'},
+            {'src': '/screenshot-wide.png', 'sizes': '1280x720', 'type': 'image/png', 'form_factor': 'wide', 'label': 'Nova Music - desktop'},
+        ],
+        'shortcuts': [
+            {'name': 'Tìm nhạc', 'short_name': 'Search', 'url': '/?nav=search', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'Nghe chung', 'short_name': 'Party', 'url': '/?nav=party', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'Yêu thích', 'short_name': 'Favorites', 'url': '/?nav=favorites', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
+        ],
+    }
+    return jsonify(data), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
-# ⬅️ FIX 3: SW không cache HTML, version v10
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v13';
+    s = """const C='nova-v14';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -745,6 +889,16 @@ self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
   if(u.pathname==='/'||u.pathname.endsWith('.html')||u.pathname==='/sw.js'){
     e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
+    return;
+  }
+  if(u.pathname.startsWith('/icon-')||u.pathname==='/icon.svg'||u.pathname.startsWith('/screenshot-')){
+    e.respondWith(
+      caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
+        const cl=r.clone();
+        caches.open(C).then(cc=>cc.put(e.request,cl));
+        return r;
+      }))
+    );
     return;
   }
   if(u.pathname==='/manifest.json'||u.pathname.startsWith('/static/')){
@@ -771,7 +925,8 @@ def debug():
     return jsonify({
         'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
         'cookies': bool(COOKIES_FILE),
-        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS)
+        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
+        'pillow': HAS_PIL,
     })
 
 
@@ -780,5 +935,6 @@ if __name__ == '__main__':
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
+    print(f"   Pillow: {'✅' if HAS_PIL else '⚠️ (icon sẽ dùng SVG fallback)'}")
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
