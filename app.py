@@ -1,13 +1,9 @@
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file, send_from_directory
-import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, pickle, atexit
+import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
-
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading',
-                    ping_timeout=20, ping_interval=10)
 
 stream_cache = {}
 tasks = {}
@@ -35,46 +31,6 @@ try:
 except: pass
 
 
-# ============ DISK CACHE ============
-CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stream_cache.pkl')
-_cache_lock = threading.Lock()
-
-def _load_cache():
-    try:
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, 'rb') as f:
-                data = pickle.load(f)
-            now = time.time()
-            for k, v in list(data.items()):
-                if now - v.get('ts', 0) >= v.get('ttl', 0):
-                    del data[k]
-            with _cache_lock:
-                stream_cache.update(data)
-            print(f"✅ Loaded {len(stream_cache)} cached items")
-    except Exception as e:
-        print(f"⚠️ Cache load failed: {e}")
-
-def _save_cache():
-    try:
-        with _cache_lock:
-            snapshot = dict(stream_cache)
-        tmp = CACHE_FILE + '.tmp'
-        with open(tmp, 'wb') as f:
-            pickle.dump(snapshot, f)
-        os.replace(tmp, CACHE_FILE)
-    except Exception as e:
-        print(f"⚠️ Cache save failed: {e}")
-
-def _cache_saver_loop():
-    while True:
-        time.sleep(90)
-        _save_cache()
-
-atexit.register(_save_cache)
-_load_cache()
-threading.Thread(target=_cache_saver_loop, daemon=True).start()
-
-
 def base_opts():
     o = {
         'quiet': True, 'no_warnings': True, 'nocheckcertificate': True,
@@ -97,8 +53,13 @@ def run_to(fn, timeout=30, *args):
 
 # ============ YOUTUBE ============
 YT_CLIENTS = [
-    ['ios'], ['web_embedded'], ['android_vr'], ['tv_embedded'],
-    ['mweb'], ['web_safari'], ['android'],
+    ['ios'],
+    ['web_embedded'],
+    ['android_vr'],
+    ['tv_embedded'],
+    ['mweb'],
+    ['web_safari'],
+    ['android'],
 ]
 
 
@@ -114,8 +75,10 @@ def extract_youtube(vid, mode='audio', timeout=30):
             )
         else:
             o['format'] = (
-                'bestaudio[ext=m4a]/bestaudio[ext=webm]/'
-                'bestaudio[ext=mp3]/bestaudio/best'
+                'bestaudio[ext=m4a]/'
+                'bestaudio[ext=webm]/'
+                'bestaudio[ext=mp3]/'
+                'bestaudio/best'
             )
         o['extractor_args'] = {'youtube': {'player_client': client_list}}
         o['http_headers'] = {
@@ -234,18 +197,11 @@ def extract_audio(vid, source='youtube', mode='audio', timeout=30):
 def get_cached(vid, source='youtube', mode='audio'):
     key = f"{source}:{mode}:{vid}"
     now = time.time()
-    with _cache_lock:
-        e = stream_cache.get(key)
-        if e and now - e['ts'] < e['ttl']:
-            return e['data']
+    if key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
+        return stream_cache[key]['data']
     info = extract_audio(vid, source, mode)
     ttl = 2400 if source == 'youtube' else 7000
-    with _cache_lock:
-        stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
-        if len(stream_cache) > 300:
-            oldest = sorted(stream_cache.items(), key=lambda x: x[1]['ts'])[:50]
-            for k, _ in oldest:
-                stream_cache.pop(k, None)
+    stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
     return info
 
 
@@ -321,10 +277,13 @@ def ping():
     return 'pong', 200
 
 
+# ⬅️ FIX 1: Route / no-cache
 @app.route('/')
 def index():
-    return send_from_directory('templates', 'index.html',
-        ), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+    return send_from_directory('templates', 'index.html'), 200, {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache', 'Expires': '0',
+    }
 
 
 @app.route('/api/search')
@@ -624,131 +583,6 @@ def clean_room(code):
         del PARTY_ROOMS[code]
 
 
-def _room_state(code):
-    room = PARTY_ROOMS.get(code)
-    if not room:
-        return None
-    return {
-        'queue': room['queue'],
-        'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()],
-        'playing': room['playing'],
-        'position': room['position'],
-        'is_playing': room['is_playing'],
-        'chat': room['chat'][-30:],
-        'host': room.get('host'),
-        'code': code,
-    }
-
-def _broadcast_state(code):
-    st = _room_state(code)
-    if st:
-        socketio.emit('party_state', st, room=f'party_{code}')
-
-@socketio.on('party_join')
-def ws_party_join(data):
-    from flask import request as freq
-    code = (data.get('code') or '').upper().strip()
-    user = (data.get('user') or 'Khách').strip()[:20]
-    sid = data.get('sid') or uuid.uuid4().hex[:10]
-    if not code or code not in PARTY_ROOMS:
-        emit('party_error', {'error': 'Không tìm thấy phòng'})
-        return
-    join_room(f'party_{code}')
-    PARTY_ROOMS[code]['members'][sid] = {
-        'name': user, 'last_seen': time.time(), 'sid': sid,
-        'socket_id': freq.sid,
-    }
-    emit('party_joined', {
-        'code': code, 'sid': sid,
-        'is_host': user == PARTY_ROOMS[code].get('host'),
-    })
-    _broadcast_state(code)
-
-@socketio.on('party_leave')
-def ws_party_leave(data):
-    code = (data.get('code') or '').upper()
-    sid = data.get('sid')
-    if code in PARTY_ROOMS and sid in PARTY_ROOMS[code]['members']:
-        del PARTY_ROOMS[code]['members'][sid]
-        leave_room(f'party_{code}')
-        clean_room(code)
-        if code in PARTY_ROOMS:
-            _broadcast_state(code)
-
-@socketio.on('party_play')
-def ws_party_play(data):
-    code = (data.get('code') or '').upper()
-    if code in PARTY_ROOMS:
-        PARTY_ROOMS[code]['playing'] = data.get('track')
-        PARTY_ROOMS[code]['position'] = data.get('position', 0)
-        PARTY_ROOMS[code]['is_playing'] = True
-        _broadcast_state(code)
-
-@socketio.on('party_sync')
-def ws_party_sync(data):
-    code = (data.get('code') or '').upper()
-    if code in PARTY_ROOMS:
-        PARTY_ROOMS[code]['position'] = data.get('position', 0)
-        PARTY_ROOMS[code]['is_playing'] = data.get('is_playing', True)
-        emit('party_sync',
-             {'position': data.get('position'), 'is_playing': data.get('is_playing')},
-             room=f'party_{code}', include_self=False)
-
-@socketio.on('party_add')
-def ws_party_add(data):
-    code = (data.get('code') or '').upper()
-    t = data.get('track')
-    if code in PARTY_ROOMS and t:
-        PARTY_ROOMS[code]['queue'].append(t)
-        _broadcast_state(code)
-
-@socketio.on('party_remove')
-def ws_party_remove(data):
-    code = (data.get('code') or '').upper()
-    i = data.get('idx')
-    if code in PARTY_ROOMS and isinstance(i, int) and 0 <= i < len(PARTY_ROOMS[code]['queue']):
-        PARTY_ROOMS[code]['queue'].pop(i)
-        _broadcast_state(code)
-
-@socketio.on('party_chat')
-def ws_party_chat(data):
-    code = (data.get('code') or '').upper()
-    user = (data.get('user') or 'Khách')[:20]
-    text = (data.get('text') or '').strip()[:200]
-    if code in PARTY_ROOMS and text:
-        msg = {'user': user, 'text': text, 'ts': time.time()}
-        PARTY_ROOMS[code]['chat'].append(msg)
-        if len(PARTY_ROOMS[code]['chat']) > 100:
-            PARTY_ROOMS[code]['chat'] = PARTY_ROOMS[code]['chat'][-100:]
-        socketio.emit('party_chat', msg, room=f'party_{code}')
-
-@socketio.on('party_ping')
-def ws_party_ping(data):
-    code = (data.get('code') or '').upper()
-    sid = data.get('sid')
-    if code in PARTY_ROOMS and sid in PARTY_ROOMS[code]['members']:
-        PARTY_ROOMS[code]['members'][sid]['last_seen'] = time.time()
-    st = _room_state(code)
-    if st:
-        emit('party_state', st)
-
-@socketio.on('disconnect')
-def ws_disconnect():
-    from flask import request as freq
-    sock_id = freq.sid
-    for code in list(PARTY_ROOMS.keys()):
-        room = PARTY_ROOMS.get(code)
-        if not room:
-            continue
-        for mid, m in list(room['members'].items()):
-            if m.get('socket_id') == sock_id:
-                del room['members'][mid]
-                clean_room(code)
-                if code in PARTY_ROOMS:
-                    _broadcast_state(code)
-                break
-
-
 @app.route('/api/party/create', methods=['POST', 'GET'])
 def party_create():
     try:
@@ -890,7 +724,7 @@ def party_chat():
         return jsonify({'ok': False}), 500
 
 
-# ============ MANIFEST (no-cache) ============
+# ⬅️ FIX 2: Manifest no-cache
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
@@ -900,10 +734,10 @@ def manifest():
     }), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
-# ============ SERVICE WORKER (không cache HTML) ============
+# ⬅️ FIX 3: SW không cache HTML
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v9';
+    s = """const C='nova-v10';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -913,7 +747,7 @@ self.addEventListener('activate',e=>{
 });
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
-  if(u.pathname==='/'||u.pathname.endsWith('.html')){
+  if(u.pathname==='/'||u.pathname.endsWith('.html')||u.pathname==='/sw.js'){
     e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
     return;
   }
@@ -941,8 +775,7 @@ def debug():
     return jsonify({
         'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
         'cookies': bool(COOKIES_FILE),
-        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
-        'cache_file_exists': os.path.exists(CACHE_FILE),
+        'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS)
     })
 
 
@@ -951,7 +784,5 @@ if __name__ == '__main__':
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
-    print(f"   cache: {len(stream_cache)} items · {CACHE_FILE}")
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port,
-                 debug=False, allow_unsafe_werkzeug=True)
+    app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
