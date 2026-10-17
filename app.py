@@ -57,8 +57,8 @@ def run_to(fn, timeout=30, *args):
 
 
 YT_CLIENTS = [
-    ['ios'], ['web_embedded'], ['android_vr'], ['tv_embedded'],
-    ['mweb'], ['web_safari'], ['android'],
+    ['ios'], ['android_vr'], ['mweb'], ['tv_embedded'],
+    ['web_embedded'], ['android'], ['web_safari'],
 ]
 
 
@@ -73,11 +73,11 @@ def extract_youtube(vid, mode='audio', timeout=30):
                 'best[height<=720]/best'
             )
         else:
+            # BẮT BUỘC m4a/mp4 để tương thích 100% Android/iOS
             o['format'] = (
-                'bestaudio[ext=m4a]/'
-                'bestaudio[ext=webm]/'
-                'bestaudio[ext=mp3]/'
-                'bestaudio/best'
+                'bestaudio[ext=m4a][acodec!=none]/'
+                'bestaudio[ext=mp4][acodec!=none]/'
+                'bestaudio[acodec!=none]'
             )
         o['extractor_args'] = {'youtube': {'player_client': client_list}}
         o['http_headers'] = {
@@ -459,26 +459,37 @@ def stream(vid):
         return f"Lỗi: {e}", 500
     if info.get('is_hls'):
         return "Dùng /hls_proxy", 400
-    hdrs = {'User-Agent': 'Mozilla/5.0'}
+    
+    # Fix cứng header để không bị YouTube chặn 403
+    hdrs = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com'
+    }
     if info.get('headers'):
         hdrs.update(info['headers'])
+        
     rng = request.headers.get('Range', '')
     if rng:
         hdrs['Range'] = rng
+        
     try:
         req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
     except Exception as e:
         return f"Stream error: {e}", 502
+        
     h = {'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'}
     for k in ('Content-Type', 'Content-Length', 'Content-Range'):
         if k in req.headers:
             h[k] = req.headers[k]
+            
     if 'Content-Type' not in h:
         ext = info['url'].split('?')[0].split('.')[-1].lower()
         h['Content-Type'] = {
             'm4a': 'audio/mp4', 'mp4': 'video/mp4',
             'webm': 'video/webm', 'mp3': 'audio/mpeg'
         }.get(ext, 'audio/mp4')
+        
     return Response(
         stream_with_context(req.iter_content(65536)),
         status=req.status_code, headers=h
