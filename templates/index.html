@@ -1504,26 +1504,9 @@ function applyViewMode(mode){
     const vm=VIEW_MODES.find(v=>v.id===_viewMode);
     btn.title='Chế độ: '+(vm?.name||'Tự động');
   }
-  // Đóng sidebar cũ nếu đổi mode
   const sb0=document.querySelector('.sb'), ov0=$('sbOverlay');
   sb0?.classList.remove('open');
   ov0?.classList.remove('on');
-
-  // Auto-mở sidebar để user THẤY thay đổi (mobile + full mode)
-  if(_viewMode==='full' && window.matchMedia('(max-width: 768px)').matches){
-    setTimeout(()=>{
-      const sb=document.querySelector('.sb');
-      const ov=$('sbOverlay');
-      if(sb && !sb.classList.contains('open')){
-        sb.classList.add('open');
-        ov?.classList.add('on');
-        setTimeout(()=>{
-          sb.classList.remove('open');
-          ov?.classList.remove('on');
-        }, 2800);
-      }
-    }, 400);
-  }
   console.log('[Nova] ViewMode:', _viewMode, '| mobile:', window.matchMedia('(max-width: 768px)').matches);
 }
 
