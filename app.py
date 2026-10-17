@@ -12,7 +12,6 @@ DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 _exec = ThreadPoolExecutor(max_workers=8)
 
-# === COOKIES từ ENV (cho Render) ===
 _cookies_env = os.environ.get('NOVA_COOKIES') or None
 COOKIES_FILE = None
 if _cookies_env:
@@ -51,7 +50,6 @@ def run_to(fn, timeout=30, *args):
         raise Exception(f"Timeout {timeout}s — chạy: pip install -U yt-dlp")
 
 
-# ============ YOUTUBE ============
 YT_CLIENTS = [
     ['ios'],
     ['web_embedded'],
@@ -113,7 +111,6 @@ def extract_youtube(vid, mode='audio', timeout=30):
     raise Exception(f"YouTube fail: {last_err}")
 
 
-# ============ SOUNDCLOUD ============
 def norm_sc(vid):
     vid = str(vid).strip()
     if vid.isdigit():
@@ -142,7 +139,6 @@ def extract_soundcloud(vid, timeout=25):
     return run_to(_do, timeout=timeout)
 
 
-# ============ TIKTOK ============
 def extract_tiktok(vid, mode='audio', timeout=25):
     def _do():
         o = base_opts()
@@ -734,7 +730,7 @@ def manifest():
     }), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
-# ⬅️ FIX 3: SW không cache HTML
+# ⬅️ FIX 3: SW không cache HTML, version v10
 @app.route('/sw.js')
 def sw():
     s = """const C='nova-v10';
