@@ -8,6 +8,21 @@
 <meta http-equiv="Expires" content="0">
 <title>Nova · Music</title>
 <meta name="theme-color" content="#02010a">
+
+<!-- PWA / iOS meta -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nova">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="Nova Music">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="shortcut icon" href="/icon-192.png">
+<link rel="mask-icon" href="/icon.svg" color="#a78bfa">
+
 <link rel="manifest" href="/manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
@@ -595,9 +610,6 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 .speed-item{padding:8px 14px;border-radius:9px;font-size:12px;font-weight:700;color:var(--tx2);text-align:center;transition:all .15s;cursor:pointer}
 .speed-item.on{background:var(--accent-soft);color:var(--accent)}
 @media(max-width:768px){.eq-panel,.speed-pop{bottom:184px;right:12px;left:12px;width:auto}.speed-pop{left:auto;width:120px}}
-.install-btn{position:fixed;bottom:120px;left:22px;z-index:998;padding:11px 16px;background:var(--grad);color:#fff;border-radius:14px;font-size:12.5px;font-weight:800;box-shadow:0 10px 30px var(--accent-soft);display:none;align-items:center;gap:8px;animation:toastIn .4s var(--spring);border:none;cursor:pointer}
-.install-btn.on{display:flex}
-@media(max-width:768px){.install-btn{bottom:190px;left:12px;font-size:11.5px;padding:9px 13px}}
 
 /* ================================================================ */
 /* ================== FINAL DRAWER - SIMPLEST ==================== */
@@ -638,12 +650,8 @@ body.drawer-open::before{
   html.full-mode .sb.open{
     transform:translateX(0)!important;
   }
-  html.full-mode .track-acts{
-    opacity:1!important;
-  }
-  html.full-mode .tracks.grid .track-acts{
-    opacity:1!important;
-  }
+  html.full-mode .track-acts{opacity:1!important}
+  html.full-mode .tracks.grid .track-acts{opacity:1!important}
   html.full-mode .pb-r{
     display:flex!important;
     position:absolute!important;
@@ -671,12 +679,7 @@ html.compact-mode .cursor-glow,
 html.compact-mode .confetti,
 html.compact-mode .stars3{display:none!important}
 
-/* Ẩn overlay cũ phòng trường hợp element vẫn còn */
-.sb-overlay{
-  display:none!important;
-  visibility:hidden!important;
-  pointer-events:none!important;
-}
+.sb-overlay{display:none!important;visibility:hidden!important;pointer-events:none!important;}
 
 /* ===== AUTO EQ ===== */
 .eq-preset[data-auto="1"]{
@@ -685,31 +688,102 @@ html.compact-mode .stars3{display:none!important}
   animation:pulse 2s ease-in-out infinite;
 }
 #autoEqBadge{
-  display:none;
-  align-items:center;
-  gap:6px;
-  padding:4px 10px;
+  display:none;align-items:center;gap:6px;padding:4px 10px;
   background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(167,139,250,.15));
-  border:1px solid rgba(34,211,238,.35);
-  border-radius:8px;
-  font-size:10px;
-  font-weight:800;
-  color:#22d3ee;
-  text-transform:uppercase;
-  letter-spacing:.5px;
-  margin-left:auto;
-  margin-right:6px;
+  border:1px solid rgba(34,211,238,.35);border-radius:8px;
+  font-size:10px;font-weight:800;color:#22d3ee;
+  text-transform:uppercase;letter-spacing:.5px;margin-left:auto;margin-right:6px;
 }
 #autoEqBadge.on{display:flex}
 #autoEqBadge .dot{
-  width:6px;height:6px;border-radius:50%;
-  background:#22d3ee;
-  box-shadow:0 0 8px #22d3ee;
-  animation:pulse 1.5s ease-in-out infinite;
+  width:6px;height:6px;border-radius:50%;background:#22d3ee;
+  box-shadow:0 0 8px #22d3ee;animation:pulse 1.5s ease-in-out infinite;
 }
-.eq-slider.auto-locked{
-  opacity:.55;
-  cursor:not-allowed;
+.eq-slider.auto-locked{opacity:.55;cursor:not-allowed;}
+
+/* ===== PWA INSTALL UPGRADE ===== */
+.install-btn{
+  position:fixed;bottom:120px;left:22px;z-index:998;
+  padding:12px 18px;
+  background:linear-gradient(135deg,#a78bfa,#ec4899,#fb923c);
+  background-size:200% 200%;
+  animation:gradShift 3s ease infinite, toastIn .4s var(--spring);
+  color:#fff;border-radius:16px;font-size:13px;font-weight:800;
+  box-shadow:0 12px 32px rgba(167,139,250,.4), 0 0 0 1px rgba(255,255,255,.1) inset;
+  display:none;align-items:center;gap:10px;
+  border:none;cursor:pointer;
+  transition:transform .2s, box-shadow .2s;
+}
+.install-btn.on{display:flex}
+.install-btn:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 16px 40px rgba(167,139,250,.6)}
+.install-btn:active{transform:scale(.98)}
+.install-btn .ic{
+  width:24px;height:24px;border-radius:8px;
+  background:rgba(255,255,255,.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex-shrink:0;
+}
+@media(max-width:768px){
+  .install-btn{bottom:190px;left:12px;font-size:12px;padding:10px 14px}
+  .install-btn .ic{width:20px;height:20px;font-size:12px}
+}
+
+body.is-standalone .install-btn{display:none!important}
+
+/* Install modal platform cards */
+.install-hero{text-align:center;padding:10px 0 22px;}
+.install-hero-icon{
+  width:88px;height:88px;border-radius:22px;
+  background:linear-gradient(135deg,#a78bfa,#ec4899);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:48px;margin-bottom:16px;
+  box-shadow:0 20px 60px rgba(167,139,250,.4), 0 0 0 4px rgba(255,255,255,.1);
+}
+.install-hero-title{
+  font-size:20px;font-weight:900;margin-bottom:8px;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.install-hero-sub{
+  font-size:13px;color:var(--tx3);line-height:1.6;max-width:300px;margin:0 auto;
+}
+.install-platform{
+  display:none;padding:18px;background:var(--s2);border:1px solid var(--br);
+  border-radius:16px;margin-top:14px;
+}
+.install-platform.active{display:block;animation:popIn .25s var(--spring)}
+.install-platform-title{
+  display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;
+  color:var(--tx);margin-bottom:14px;text-transform:uppercase;letter-spacing:.8px;
+}
+.install-platform-title .emo{font-size:20px;}
+.install-step{
+  display:flex;gap:12px;padding:10px 0;font-size:13px;color:var(--tx2);
+  line-height:1.6;align-items:flex-start;border-bottom:1px solid var(--br);
+}
+.install-step:last-child{border-bottom:none}
+.install-step-num{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--accent-soft);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:900;flex-shrink:0;
+}
+.install-step b{color:var(--tx);font-weight:800}
+.install-kbd{
+  display:inline-block;padding:2px 8px;background:var(--s3);
+  border-radius:6px;font-family:monospace;font-size:11px;
+  color:var(--accent);border:1px solid var(--br);font-weight:700;
+}
+.install-actions{display:flex;gap:8px;margin-top:16px;}
+.install-actions button{
+  flex:1;padding:13px;border-radius:12px;font-size:13px;font-weight:800;
+  transition:all .2s;
+}
+.install-actions .primary{
+  background:var(--grad);color:#fff;
+  box-shadow:0 8px 24px var(--accent-soft);
+}
+.install-actions .ghost{
+  background:var(--s2);color:var(--tx2);border:1px solid var(--br);
 }
 </style>
 </head>
@@ -1032,6 +1106,46 @@ html.compact-mode .stars3{display:none!important}
   </div>
 </div>
 
+<!-- ===== PWA INSTALL MODAL ===== -->
+<div class="mbg" id="installModal" onclick="if(event.target===this)closeModal('installModal')">
+  <div class="modal">
+    <button class="m-x" onclick="closeModal('installModal')">✕</button>
+    <div class="install-hero">
+      <div class="install-hero-icon">📲</div>
+      <div class="install-hero-title">Cài Nova Music</div>
+      <div class="install-hero-sub" id="installSub">Cài app để mở nhanh và nghe offline</div>
+    </div>
+
+    <div class="install-platform" id="installIOS">
+      <div class="install-platform-title"><span class="emo">🍎</span> Hướng dẫn iOS (Safari)</div>
+      <div class="install-step"><span class="install-step-num">1</span><div>Bấm nút <b>Chia sẻ</b> <span class="install-kbd">⎋</span> ở thanh dưới Safari</div></div>
+      <div class="install-step"><span class="install-step-num">2</span><div>Cuộn xuống, chọn <b>"Thêm vào Màn hình chính"</b></div></div>
+      <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Thêm"</b> ở góc trên phải</div></div>
+      <div class="install-step"><span class="install-step-num">4</span><div>Mở Nova từ màn hình chính</div></div>
+    </div>
+
+    <div class="install-platform" id="installAndroid">
+      <div class="install-platform-title"><span class="emo">🤖</span> Hướng dẫn Android (Chrome)</div>
+      <div class="install-step"><span class="install-step-num">1</span><div>Bấm <b>menu ⋮</b> ở góc trên phải</div></div>
+      <div class="install-step"><span class="install-step-num">2</span><div>Chọn <b>"Cài đặt ứng dụng"</b> hoặc <b>"Thêm vào Màn hình chính"</b></div></div>
+      <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Cài đặt"</b> để xác nhận</div></div>
+      <div class="install-step"><span class="install-step-num">4</span><div>Mở Nova từ màn hình chính</div></div>
+    </div>
+
+    <div class="install-platform" id="installDesktop">
+      <div class="install-platform-title"><span class="emo">💻</span> Hướng dẫn Desktop (Chrome/Edge)</div>
+      <div class="install-step"><span class="install-step-num">1</span><div>Tìm icon <b>cài đặt</b> trên thanh địa chỉ (bên phải URL)</div></div>
+      <div class="install-step"><span class="install-step-num">2</span><div>Hoặc bấm <b>menu ⋮</b> → <b>"Cài đặt Nova Music"</b></div></div>
+      <div class="install-step"><span class="install-step-num">3</span><div>Bấm <b>"Cài đặt"</b></div></div>
+    </div>
+
+    <div class="install-actions" id="installActions">
+      <button class="ghost" onclick="closeModal('installModal')">Để sau</button>
+      <button class="primary" onclick="doInstallFromModal()" id="installNowBtn" style="display:none">📲 Cài ngay</button>
+    </div>
+  </div>
+</div>
+
 <div class="vov" id="videoOv" onclick="if(event.target===this)closeVideo()">
   <button class="vov-x" onclick="closeVideo()">✕</button>
   <video id="videoEl" controls playsinline></video>
@@ -1045,9 +1159,10 @@ html.compact-mode .stars3{display:none!important}
   <button class="bn" data-nav="download" onclick="navTo('download')"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg><span>Tải</span></button>
 </nav>
 
+<!-- NÚT CÀI APP MỚI -->
 <button class="install-btn" id="installBtn" onclick="installPWA()">
-  <svg viewBox="0 0 24 24"><path d="M17 18v1H6v-1h11zm-5-3.5V6l3.5 3.5 1.41-1.41L12 3.17 7.09 8.09 8.5 9.5 12 6v8.5h1z"/></svg>
-  Cài đặt Nova
+  <span class="ic">📲</span>
+  Cài Nova Music
 </button>
 
 <div class="speed-pop" id="speedPop">
@@ -1532,7 +1647,6 @@ function ensureAudioGraph(){
   }catch(e){ console.warn('AudioGraph:', e); return false; }
 }
 
-// ==== AUTO EQ ====
 let _autoEQOn = false;
 let _autoEQTimer = null;
 let _autoEQCur = {bass:0, mid:0, treble:0};
@@ -1621,7 +1735,6 @@ function autoEQStep(){
   }catch(e){ console.warn('AutoEQ step error:', e); }
 }
 
-// ==== INIT EQ ====
 function initEQ(){
   try{
     if(!ensureAudioGraph()) return;
@@ -1813,9 +1926,7 @@ function togglePlay(){
   audio.paused ? audio.play() : audio.pause();
 }
 
-// ========== NEXT / PREV — CONTEXT AWARE ==========
 function playNext(){
-  // 1. Loop one → replay
   if(S.loop === 'one'){
     audio.currentTime = 0;
     audio.play();
@@ -1823,7 +1934,6 @@ function playNext(){
     return;
   }
 
-  // 2. Queue ưu tiên cao nhất
   if(S.queue.length){
     let n;
     if(S.shuffle){
@@ -1840,7 +1950,6 @@ function playNext(){
     if(n && n.id !== S.curId) return playTrack(n.id, n);
   }
 
-  // 3. Context (search / playlist / favorites đang duyệt)
   if(S.context && S.context.length > 1){
     let i = S.context.findIndex(t => t.id === S.curId);
     if(i < 0) i = S.contextIdx >= 0 ? S.contextIdx : 0;
@@ -1860,7 +1969,6 @@ function playNext(){
     }
   }
 
-  // 4. History
   if(S.history.length > 1){
     const i = S.history.findIndex(h => h.id === S.curId);
     if(i >= 0 && i + 1 < S.history.length){
@@ -1870,12 +1978,10 @@ function playNext(){
     if(first) return playTrack(first.id, first);
   }
 
-  // 5. Smart Auto
   if(typeof isSmartAutoOn === 'function' && isSmartAutoOn()){
     return smartNext();
   }
 
-  // 6. Replay nếu chỉ có 1 bài
   if(S.history.length <= 1){
     audio.currentTime = 0;
     audio.play();
@@ -1887,20 +1993,17 @@ function playNext(){
 }
 
 function playPrev(){
-  // Nếu > 3 giây → seek về 0 (giống Spotify)
   if(audio.currentTime > 3){
     audio.currentTime = 0;
     toast('⏮ Về đầu bài');
     return;
   }
 
-  // Queue
   if(S.queue.length){
     const i = S.queue.findIndex(q => q.id === S.curId);
     if(i > 0) return playTrack(S.queue[i-1].id, S.queue[i-1]);
   }
 
-  // Context
   if(S.context && S.context.length > 1){
     let i = S.context.findIndex(t => t.id === S.curId);
     if(i < 0) i = S.contextIdx >= 0 ? S.contextIdx : 0;
@@ -1912,7 +2015,6 @@ function playPrev(){
     }
   }
 
-  // History
   if(S.history.length > 1){
     const i = S.history.findIndex(h => h.id === S.curId);
     if(i >= 0 && i + 1 < S.history.length){
@@ -2012,7 +2114,6 @@ function toggleFavCurrent(){
   toggleFav(S.curId, S.curInfo);
 }
 
-// ========== RP TABS ==========
 function setRPTab(t){
   document.querySelectorAll('.rp-tab').forEach(x=>x.classList.toggle('on', x.dataset.tab===t));
   document.querySelectorAll('.rp-view').forEach(x=>x.classList.remove('on'));
@@ -2199,6 +2300,28 @@ function toggleSmartAuto(){
   const el = $('smartAutoState'); if(el) el.textContent = on?'Bật':'Tắt';
   toast(on?'🎯 Smart Auto BẬT':'🎯 Smart Auto TẮT', on?'ok':'');
 }
+
+async function smartNext(){
+  const queries = ['nhạc việt hot','lofi chill','remix hot tiktok','vpop hot','rap việt hot'];
+  const q = queries[Math.floor(Math.random()*queries.length)];
+  toast('🎯 Tự tìm bài mới: '+q);
+  try{
+    const ep = S.source==='youtube' ? '/api/search' : '/api/sc_search';
+    const r = await fetch(ep+'?q='+encodeURIComponent(q));
+    const data = await r.json();
+    if(Array.isArray(data) && data.length){
+      const pick = data[Math.floor(Math.random()*data.length)];
+      if(pick && pick.id !== S.curId){
+        S.context = data;
+        S.contextIdx = data.findIndex(x=>x.id===pick.id);
+        return playTrack(pick.id, pick);
+      }
+    }
+  }catch{}
+  toast('Không tìm được bài mới','err');
+}
+
+async function playRandomNow(){ return smartNext(); }
 
 // ========== MODALS ==========
 function openModal(id){
@@ -2474,29 +2597,6 @@ setInterval(()=>{
   }
 }, 30000);
 
-// ========== SMART AUTO — helper ==========
-async function smartNext(){
-  const queries = ['nhạc việt hot','lofi chill','remix hot tiktok','vpop hot','rap việt hot'];
-  const q = queries[Math.floor(Math.random()*queries.length)];
-  toast('🎯 Tự tìm bài mới: '+q);
-  try{
-    const ep = S.source==='youtube' ? '/api/search' : '/api/sc_search';
-    const r = await fetch(ep+'?q='+encodeURIComponent(q));
-    const data = await r.json();
-    if(Array.isArray(data) && data.length){
-      const pick = data[Math.floor(Math.random()*data.length)];
-      if(pick && pick.id !== S.curId){
-        S.context = data;
-        S.contextIdx = data.findIndex(x=>x.id===pick.id);
-        return playTrack(pick.id, pick);
-      }
-    }
-  }catch{}
-  toast('Không tìm được bài mới','err');
-}
-
-async function playRandomNow(){ return smartNext(); }
-
 // ========== VIEW MODE ==========
 const VIEW_MODE_KEY = 'nv_view_mode';
 const VIEW_MODES = [
@@ -2568,30 +2668,126 @@ async function hardResetApp(){
   location.reload(true);
 }
 
-// ========== PWA ==========
+// ========== PWA INSTALL (NÂNG CAO) ==========
 let deferredInstallPrompt = null;
+let _isStandalone = false;
+let _installPromptShown = localStorage.getItem('nv_install_shown') === '1';
+
+function detectStandalone(){
+  _isStandalone = 
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://');
+  if(_isStandalone){
+    document.body.classList.add('is-standalone');
+    console.log('[PWA] Running in standalone mode');
+  }
+}
+
+function getPlatform(){
+  const ua = navigator.userAgent.toLowerCase();
+  if(/iphone|ipad|ipod/.test(ua)) return 'ios';
+  if(/android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  $('installBtn')?.classList.add('on');
+  console.log('[PWA] Install prompt ready');
+  setTimeout(()=>{
+    if(!_isStandalone) $('installBtn')?.classList.add('on');
+  }, 2500);
+  if(!_installPromptShown && !_isStandalone){
+    setTimeout(()=>{ showInstallModal(); }, 4000);
+  }
 });
+
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
+  _isStandalone = true;
+  document.body.classList.add('is-standalone');
   $('installBtn')?.classList.remove('on');
-  toast('📲 Đã cài Nova Music','ok');
+  localStorage.setItem('nv_install_shown', '1');
+  toast('🎉 Đã cài Nova Music thành công!','ok');
+  closeModal('installModal');
 });
+
+function showInstallModal(){
+  if(_isStandalone) return toast('Bạn đang dùng Nova Music dạng app rồi 🎉');
+  
+  const platform = getPlatform();
+  const hasDeferredPrompt = !!deferredInstallPrompt;
+  
+  document.querySelectorAll('.install-platform').forEach(p => p.classList.remove('active'));
+  
+  const sub = $('installSub');
+  const installNowBtn = $('installNowBtn');
+  
+  if(hasDeferredPrompt){
+    if(sub) sub.textContent = 'Chỉ 1 cú click để cài app. Mở nhanh, nghe offline.';
+    if(installNowBtn){
+      installNowBtn.style.display = 'block';
+      installNowBtn.textContent = '📲 Cài ngay';
+    }
+    if(platform === 'android'){
+      $('installAndroid')?.classList.add('active');
+    } else {
+      $('installDesktop')?.classList.add('active');
+    }
+  } else {
+    if(sub) sub.textContent = 'Trình duyệt của bạn cần cài thủ công. Làm theo hướng dẫn bên dưới:';
+    if(installNowBtn) installNowBtn.style.display = 'none';
+    
+    if(platform === 'ios'){
+      $('installIOS')?.classList.add('active');
+    } else if(platform === 'android'){
+      $('installAndroid')?.classList.add('active');
+    } else {
+      $('installDesktop')?.classList.add('active');
+    }
+  }
+  
+  openModal('installModal');
+  localStorage.setItem('nv_install_shown', '1');
+  _installPromptShown = true;
+}
+
 async function installPWA(){
+  if(_isStandalone) return toast('Bạn đang dùng Nova Music dạng app 🎉');
+  
+  if(deferredInstallPrompt){
+    try{
+      deferredInstallPrompt.prompt();
+      const {outcome} = await deferredInstallPrompt.userChoice;
+      if(outcome === 'accepted'){
+        toast('📲 Đang cài Nova Music...','ok');
+      }
+      deferredInstallPrompt = null;
+    }catch(e){}
+  } else {
+    showInstallModal();
+  }
+}
+
+async function doInstallFromModal(){
   if(!deferredInstallPrompt){
-    toast('Dùng "Thêm vào màn hình chính" trong menu trình duyệt','');
+    closeModal('installModal');
+    toast('Không thể cài tự động. Làm theo hướng dẫn.','');
     return;
   }
   try{
     deferredInstallPrompt.prompt();
     const {outcome} = await deferredInstallPrompt.userChoice;
-    if(outcome==='accepted') toast('📲 Đang cài Nova...','ok');
+    if(outcome === 'accepted'){
+      toast('📲 Đang cài Nova Music...','ok');
+      closeModal('installModal');
+    } else {
+      toast('Bạn đã huỷ cài đặt','');
+    }
+    deferredInstallPrompt = null;
   }catch(e){}
-  deferredInstallPrompt = null;
-  $('installBtn')?.classList.remove('on');
 }
 
 // ========== SERVICE WORKER ==========
@@ -2623,6 +2819,33 @@ window.addEventListener('load', () => {
 });
 
 document.addEventListener('visibilitychange', () => document.body.classList.toggle('tab-hidden', document.hidden));
+
+// Detect standalone
+detectStandalone();
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) detectStandalone();
+});
+
+// Handle ?source=pwa & ?nav=
+(function(){
+  const p = new URLSearchParams(location.search);
+  const nav = p.get('nav');
+  if(nav){
+    setTimeout(()=>{
+      if(nav === 'party') openParty();
+      else if(nav === 'search'){ navTo('search'); setTimeout(()=>$('q').focus(), 300); }
+      else if(nav === 'favorites') navTo('favorites');
+      else if(nav === 'download') navTo('download');
+    }, 700);
+    history.replaceState(null, '', location.pathname);
+  }
+})();
+
+if(_isStandalone){
+  console.log('[Nova] Launched as PWA · Platform:', getPlatform());
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', '#0f0c23');
+}
 
 // Auto load ?play= / ?party=
 (function(){
@@ -2668,7 +2891,7 @@ if(window.innerWidth < 768 && !localStorage.getItem('nv_vm_hint')){
 }
 
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'), 1400);
-console.log(`[Nova] Mobile: ${window.matchMedia('(max-width: 768px)').matches} · ViewMode: ${_viewMode} · AutoEQ: ${localStorage.getItem(AUTO_EQ_KEY)==='1'?'ON':'OFF'}`);
+console.log(`[Nova] Mobile: ${window.matchMedia('(max-width: 768px)').matches} · ViewMode: ${_viewMode} · AutoEQ: ${localStorage.getItem(AUTO_EQ_KEY)==='1'?'ON':'OFF'} · PWA: ${_isStandalone?'installed':'browser'}`);
 </script>
 </body>
   </html>
