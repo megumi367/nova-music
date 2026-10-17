@@ -722,118 +722,167 @@ def party_chat():
 
 # ============ PWA ICON GENERATOR ============
 def _render_nova_icon(size):
-    if not HAS_PIL: return None
+    if not HAS_PIL:
+        return None
     try:
-        img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
+        import math, io
+        img = Image.new('RGBA', (size, size), (2, 1, 10, 255))
         cx, cy = size // 2, size // 2
+        R = size / 512.0
 
-        # 1. Nền
-        draw.ellipse([0, 0, size, size], fill=(10, 5, 20, 255))
+        # 1. Radial background
+        grad = Image.radial_gradient('L').resize((size, size), Image.LANCZOS)
+        mask = Image.eval(grad, lambda x: int((255 - x) * 0.65))
+        purple = Image.new('RGBA', (size, size), (58, 16, 96, 255))
+        dark = Image.new('RGBA', (size, size), (2, 1, 10, 255))
+        img = Image.composite(purple, dark, mask)
 
-        # 2. Vòng hào quang
-        ring_w = max(2, int(size * 0.02))
-        r_outer = int(size * 0.42)
-        draw.ellipse([cx-r_outer, cy-r_outer, cx+r_outer, cy+r_outer], outline=(167, 139, 250, 150), width=ring_w)
-        
-        r_inner = int(size * 0.35)
-        draw.ellipse([cx-r_inner, cy-r_inner, cx+r_inner, cy+r_inner], outline=(236, 72, 153, 100), width=max(1, int(size*0.01)))
+        # 2. Outer spikes (4 tia)
+        spike = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(spike)
+        for angle_deg in (0, 90, 180, 270):
+            a = math.radians(angle_deg - 90)
+            apex_r = int(248 * R)
+            base_r = int(172 * R)
+            spread = math.radians(8)
+            apex = (cx + apex_r * math.cos(a), cy + apex_r * math.sin(a))
+            p1 = (cx + base_r * math.cos(a - spread), cy + base_r * math.sin(a - spread))
+            p2 = (cx + base_r * math.cos(a + spread), cy + base_r * math.sin(a + spread))
+            sd.polygon([apex, p1, p2], fill=(167, 139, 250, 240))
+        img = Image.alpha_composite(img, spike.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.022))))
+        img = Image.alpha_composite(img, spike)
 
-        # 3. Bóng người
-        shoulder_w = int(size * 0.32)
-        shoulder_y = int(size * 0.75)
-        draw.polygon([
-            (cx - shoulder_w, shoulder_y),
-            (cx + shoulder_w, shoulder_y),
-            (cx + int(size*0.25), size),
-            (cx - int(size*0.25), size)
+        # 3. Halo ring (dịch lên trên)
+        ring = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        rd = ImageDraw.Draw(ring)
+        ring_cy = int(cy - 40 * R)
+        ring_r = int(138 * R)
+        ring_w = max(8, int(22 * R))
+        rd.ellipse([cx-ring_r, ring_cy-ring_r, cx+ring_r, ring_cy+ring_r],
+                   outline=(183, 148, 255, 255), width=ring_w)
+        img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(3, size*0.045))))
+        img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
+        img = Image.alpha_composite(img, ring)
+
+        # 4. Silhouette (đen, đè lên ring)
+        sil = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        s = ImageDraw.Draw(sil)
+        shoulder_y = int(cy + 110 * R)
+        s.polygon([
+            (cx - int(132*R), size),
+            (cx + int(132*R), size),
+            (cx + int(88*R), shoulder_y),
+            (cx - int(88*R), shoulder_y),
         ], fill=(0, 0, 0, 255))
-        neck_w = int(size * 0.08)
-        draw.rectangle([cx-neck_w, int(size*0.6), cx+neck_w, shoulder_y], fill=(0, 0, 0, 255))
-        head_r = int(size * 0.12)
-        draw.ellipse([cx-head_r, int(size*0.65)-head_r, cx+head_r, int(size*0.65)+head_r], fill=(0, 0, 0, 255))
+        s.rectangle([cx-int(28*R), int(cy + 15*R), cx+int(28*R), shoulder_y + int(12*R)], fill=(0,0,0,255))
+        head_r = int(70 * R)
+        head_cy = int(cy - 15 * R)
+        s.ellipse([cx-head_r, head_cy-head_r, cx+head_r, head_cy+head_r], fill=(0,0,0,255))
+        # Crown 3 gai
+        crown_y = int(head_cy - head_r + int(18*R))
+        s.polygon([(cx-int(52*R), crown_y+int(18*R)), (cx-int(40*R), crown_y-int(42*R)), (cx-int(20*R), crown_y+int(18*R))], fill=(0,0,0,255))
+        s.polygon([(cx-int(22*R), crown_y+int(18*R)), (cx, crown_y-int(82*R)), (cx+int(22*R), crown_y+int(18*R))], fill=(0,0,0,255))
+        s.polygon([(cx+int(20*R), crown_y+int(18*R)), (cx+int(40*R), crown_y-int(42*R)), (cx+int(52*R), crown_y+int(18*R))], fill=(0,0,0,255))
+        img = Image.alpha_composite(img, sil)
 
-        # 4. Ngôi sao (có Glow)
-        glow = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        g_draw = ImageDraw.Draw(glow)
-        import math
-        def draw_star(dr, cx, cy, outer_r, inner_r, color):
-            pts = []
-            for i in range(8):
-                angle = math.radians(i * 45 - 90)
-                r = outer_r if i % 2 == 0 else inner_r
-                pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
-            dr.polygon(pts, fill=color)
+        # 5. Vertical beam
+        beam = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        bd = ImageDraw.Draw(beam)
+        beam_top = int(head_cy + int(10*R))
+        beam_w = max(2, int(3 * R))
+        bd.rectangle([cx - beam_w, beam_top, cx + beam_w, size], fill=(212, 187, 255, 220))
+        img = Image.alpha_composite(img, beam.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.014))))
+        img = Image.alpha_composite(img, beam)
 
-        draw_star(g_draw, cx, cy, int(size*0.28), int(size*0.05), (167, 139, 250, 255))
-        glow = glow.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.04)))
-        img = Image.alpha_composite(img, glow)
-        
-        draw = ImageDraw.Draw(img)
-        draw_star(draw, cx, cy, int(size*0.25), int(size*0.04), (255, 255, 255, 255))
-        draw.ellipse([cx-int(size*0.04), cy-int(size*0.04), cx+int(size*0.04), cy+int(size*0.04)], fill=(255, 255, 255, 255))
+        # 6. Star 4 cánh ở trán
+        star_cx, star_cy = cx, head_cy + int(5*R)
+        star_outer = int(46 * R)
+        star_inner = int(8 * R)
+        pts = []
+        for i in range(8):
+            angle = math.radians(i * 45 - 90)
+            r = star_outer if i % 2 == 0 else star_inner
+            pts.append((star_cx + r * math.cos(angle), star_cy + r * math.sin(angle)))
 
-        # 5. Chữ NOVA
-        if size >= 100:
-            try:
-                font_size = int(size * 0.1)
-                try:
-                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-                except:
-                    font = ImageFont.load_default()
-                text = "NOVA"
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_w = bbox[2] - bbox[0]
-                text_h = bbox[3] - bbox[1]
-                draw.text((cx - text_w // 2, int(size * 0.82) - text_h // 2), text, font=font, fill=(167, 139, 250, 255))
-            except: pass
+        sg = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        ImageDraw.Draw(sg).polygon(pts, fill=(200, 150, 255, 255))
+        img = Image.alpha_composite(img, sg.filter(ImageFilter.GaussianBlur(radius=max(3, size*0.04))))
 
-        import io
+        sw = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        ImageDraw.Draw(sw).polygon(pts, fill=(255, 255, 255, 255))
+        img = Image.alpha_composite(img, sw.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
+
+        ss = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        ImageDraw.Draw(ss).polygon(pts, fill=(255, 255, 255, 255))
+        img = Image.alpha_composite(img, ss)
+
         buf = io.BytesIO()
         img.save(buf, format='PNG', optimize=True)
         return buf.getvalue()
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Lỗi vẽ icon: {e}")
         return None
 
 
-@app.route('/icon-<int:size>.png')
-def pwa_icon_png(size):
+@app.route('/icon-v3-<int:size>.png')
+def pwa_icon_png_v3(size):
     if size not in (96, 128, 144, 152, 180, 192, 256, 384, 512):
         return "Bad size", 404
     data = _render_nova_icon(size)
     if data is None:
         return pwa_icon_svg()
     return Response(data, mimetype='image/png', headers={
-        'Cache-Control': 'public, max-age=604800',
+        'Cache-Control': 'public, max-age=31536000, immutable',
         'Content-Length': str(len(data)),
     })
 
 
 @app.route('/icon.svg')
 def pwa_icon_svg():
-    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<defs>
-  <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="#1c0b3d"/>
-    <stop offset="100%" stop-color="#05020a"/>
-  </radialGradient>
-  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-    <feGaussianBlur stdDeviation="12" result="blur"/>
-    <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-  </filter>
-</defs>
-<circle cx="256" cy="256" r="256" fill="url(#bg)"/>
-<circle cx="256" cy="256" r="200" fill="none" stroke="#a78bfa" stroke-width="6" filter="url(#glow)" opacity="0.8"/>
-<circle cx="256" cy="256" r="170" fill="none" stroke="#ec4899" stroke-width="3" stroke-dasharray="15 25" opacity="0.6"/>
-<path d="M 180 512 L 190 380 C 190 340, 210 310, 230 300 L 256 320 L 282 300 C 302 310, 322 340, 322 380 L 332 512 Z" fill="#000"/>
-<rect x="236" y="250" width="40" height="60" fill="#000"/>
-<ellipse cx="256" cy="220" rx="45" ry="55" fill="#000"/>
-<g filter="url(#glow)">
-  <path d="M 256 60 L 285 220 L 452 256 L 285 292 L 256 452 L 227 292 L 60 256 L 227 220 Z" fill="#fff" opacity="0.9"/>
-  <path d="M 256 130 L 275 235 L 380 256 L 275 277 L 256 380 L 237 277 L 132 256 L 237 235 Z" fill="#a78bfa"/>
-</g>
-<circle cx="256" cy="256" r="12" fill="#fff" filter="url(#glow)"/>
+    svg = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#3a1060"/>
+      <stop offset="55%" stop-color="#0a0520"/>
+      <stop offset="100%" stop-color="#02010a"/>
+    </radialGradient>
+    <filter id="gw" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <g filter="url(#gw)">
+    <path d="M 256 8 L 268 176 L 256 190 L 244 176 Z" fill="#a78bfa"/>
+    <path d="M 256 504 L 268 336 L 256 322 L 244 336 Z" fill="#a78bfa"/>
+    <path d="M 8 256 L 176 268 L 190 256 L 176 244 Z" fill="#a78bfa"/>
+    <path d="M 504 256 L 336 268 L 322 256 L 336 244 Z" fill="#a78bfa"/>
+  </g>
+  <g filter="url(#soft)" opacity="0.85">
+    <circle cx="256" cy="216" r="140" fill="none" stroke="#b794ff" stroke-width="24"/>
+  </g>
+  <circle cx="256" cy="216" r="140" fill="none" stroke="#c4a3ff" stroke-width="14"/>
+  <g fill="#000">
+    <path d="M 120 512 L 140 390 C 150 340, 190 300, 220 290 L 256 310 L 292 290 C 322 300, 362 340, 372 390 L 392 512 Z"/>
+    <rect x="230" y="250" width="52" height="70"/>
+    <ellipse cx="256" cy="210" rx="72" ry="80"/>
+    <path d="M 190 175 L 210 105 L 230 175 Z"/>
+    <path d="M 232 165 L 256 65 L 280 165 Z"/>
+    <path d="M 282 175 L 302 105 L 322 175 Z"/>
+  </g>
+  <g filter="url(#gw)">
+    <path d="M 252 512 L 260 512 L 259 215 L 253 215 Z" fill="#d4bbff" opacity="0.9"/>
+  </g>
+  <g filter="url(#gw)">
+    <path d="M 256 120 L 272 195 L 350 210 L 272 225 L 256 300 L 240 225 L 162 210 L 240 195 Z" fill="#e0d0ff"/>
+  </g>
+  <path d="M 256 155 L 264 198 L 308 208 L 264 218 L 256 262 L 248 218 L 204 208 L 248 198 Z" fill="#ffffff"/>
+  <circle cx="256" cy="210" r="5" fill="#fff"/>
 </svg>'''
     return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
 
@@ -857,22 +906,40 @@ def manifest():
         'prefer_related_applications': False,
         'icons': [
             {'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml', 'purpose': 'any maskable'},
-            {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
-            {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'maskable'},
-            {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
-            {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
+            {'src': '/icon-v3-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-v3-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'maskable'},
+            {'src': '/icon-v3-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-v3-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
         ],
         'shortcuts': [
-            {'name': 'Tìm nhạc', 'short_name': 'Search', 'url': '/?nav=search', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
-            {'name': 'Nghe chung', 'short_name': 'Party', 'url': '/?nav=party', 'icons': [{'src': '/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'Tìm nhạc', 'short_name': 'Search', 'url': '/?nav=search', 'icons': [{'src': '/icon-v3-192.png', 'sizes': '192x192'}]},
+            {'name': 'Nghe chung', 'short_name': 'Party', 'url': '/?nav=party', 'icons': [{'src': '/icon-v3-192.png', 'sizes': '192x192'}]},
         ],
     }
     return jsonify(data), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 
+@app.route('/.well-known/assetlinks.json')
+def assetlinks():
+    data = [{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.nova.music",
+            "sha256_cert_fingerprints": [
+                "EC:9B:D9:C2:FC:BA:68:45:A0:C1:F8:AF:E0:15:92:52:F4:66:AA:01:56:66:28:5F:9A:57:E9:D5:6A:26:02:6F"
+            ]
+        }
+    }]
+    return jsonify(data), 200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+    }
+
+
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v15';
+    s = """const C='nova-v17';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -919,6 +986,6 @@ if __name__ == '__main__':
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
-    print(f"   pillow: {'✅' if HAS_PIL else '⚠️'}")
+    print(f"   pillow: {'✅' if HAS_PIL else '❌'}")
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
