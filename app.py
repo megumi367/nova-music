@@ -733,7 +733,7 @@ def manifest():
 # ⬅️ FIX 3: SW không cache HTML, version v10
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v10';
+    s = """const C='nova-v12';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
