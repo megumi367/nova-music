@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Nova · Music</title>
+<title>Nova · Music V2</title>
 <meta name="theme-color" content="#02010a">
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
-<link rel="apple-touch-icon" href="/icon-v2-180.png">
-<link rel="apple-touch-icon" sizes="192x192" href="/icon-v2-192.png">
+<link rel="apple-touch-icon" href="/icon-v3-180.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-v3-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -672,6 +672,29 @@ body.is-standalone .install-btn{display:none!important}
 .install-actions button{flex:1;padding:13px;border-radius:12px;font-size:13px;font-weight:800;transition:all .2s;}
 .install-actions .primary{background:var(--grad);color:#fff;box-shadow:0 8px 24px var(--accent-soft);}
 .install-actions .ghost{background:var(--s2);color:var(--tx2);border:1px solid var(--br);}
+
+/* ===== V2: FULLSCREEN PLAYER ===== */
+.full-player{position:fixed;inset:0;z-index:2000;background:rgba(2,1,10,.98);backdrop-filter:blur(40px);display:flex;flex-direction:column;padding:40px 24px;transform:translateY(100%);transition:transform .4s var(--ease);visibility:hidden}
+.full-player.on{transform:translateY(0);visibility:visible}
+.fp-hd{display:flex;justify-content:space-between;align-items:center;color:var(--tx2);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:20px}
+.fp-hd button{color:var(--tx);padding:10px;background:var(--s2);border-radius:50%;display:flex}
+.fp-art-w{width:100%;max-width:340px;margin:0 auto 30px;aspect-ratio:1;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);position:relative;transition:transform .3s}
+.fp-art{width:100%;height:100%;object-fit:cover}
+.fp-info{text-align:center;margin-bottom:20px}
+.fp-title{font-size:22px;font-weight:800;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fp-artist{font-size:15px;color:var(--tx3);font-weight:500}
+.fp-lyrics{flex:1;overflow-y:auto;text-align:center;font-size:15px;line-height:2;color:var(--tx3);padding-bottom:20px;scroll-behavior:smooth;mask-image:linear-gradient(to bottom,transparent,black 10%,black 90%,transparent)}
+.fp-lyrics .active{color:var(--accent);font-weight:800;transform:scale(1.05);display:inline-block}
+.fp-controls{display:flex;justify-content:center;align-items:center;gap:25px;margin-bottom:20px}
+
+/* ===== V2: PITCH SHIFT POPUP ===== */
+.pitch-pop{position:fixed;bottom:116px;right:22px;background:rgba(15,10,32,.98);border:1px solid var(--br2);border-radius:16px;padding:16px;z-index:150;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.7);opacity:0;pointer-events:none;transform:translateY(10px);transition:all .3s;width:200px}
+.pitch-pop.on{opacity:1;pointer-events:auto;transform:translateY(0)}
+.pitch-hd{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--tx3);text-align:center}
+.pitch-slider{width:100%;-webkit-appearance:none;height:4px;background:var(--s3);border-radius:2px;outline:none}
+.pitch-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer}
+.pitch-val{text-align:center;font-size:14px;font-weight:800;color:var(--accent);font-family:monospace}
+@media(max-width:768px){.pitch-pop{bottom:184px;right:12px;width:220px}}
 </style>
 </head>
 <body>
@@ -723,7 +746,7 @@ body.is-standalone .install-btn{display:none!important}
     </svg>
   </div>
   <div class="loading-title">NOVA</div>
-  <div class="loading-sub">Music Universe</div>
+  <div class="loading-sub">Music Universe V2</div>
   <div class="loading-bar"><div class="loading-bar-fill"></div></div>
 </div>
 
@@ -812,6 +835,8 @@ body.is-standalone .install-btn{display:none!important}
       <div class="search">
         <svg class="search-ic" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg>
         <input id="q" placeholder="Tìm bài hát, nghệ sĩ..." autocomplete="off">
+        <!-- V2: SEARCH SUGGEST -->
+        <div id="searchSuggestions" class="search-suggest"></div>
       </div>
       <div class="tb-actions">
         <button class="tb vm-btn" id="vmBtn" onclick="openViewModeModal()" title="Chế độ xem">
@@ -920,7 +945,8 @@ body.is-standalone .install-btn{display:none!important}
 </div>
 
 <div class="player" id="player">
-  <div class="pb-l" onclick="openInfoModal()">
+  <!-- V2: Bấm vào đây để mở Full Player -->
+  <div class="pb-l" onclick="toggleFullPlayer()">
     <img class="pb-art" id="pbArt" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%237568a3'%3E%3Cpath d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z'/%3E%3C/svg%3E">
     <div class="pb-txt"><div class="pb-t" id="pbT">Chưa phát bài nào</div><div class="pb-a" id="pbA">Chọn bài hát để bắt đầu</div></div>
   </div>
@@ -941,6 +967,8 @@ body.is-standalone .install-btn{display:none!important}
   <div class="pb-r">
     <button class="pc" onclick="toggleFavCurrent()" id="pbFav"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
     <button class="pc speed-btn" onclick="toggleSpeedPop(event)" title="Tốc độ"><span class="spd-val" id="speedVal">1x</span></button>
+    <!-- V2: Nút Pitch -->
+    <button class="pc" onclick="togglePitchPop(event)" title="Đổi tông"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></button>
     <button class="pc" onclick="toggleEQPanel(event)" title="Equalizer"><svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg></button>
     <button class="pc" onclick="openVideo()"><svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
     <button class="pc" onclick="openInfoModal()"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-8C6.48 3 2 7.48 2 12s4.48 9 10 9 10-4.48 10-9-4.48-9-10-9z"/></svg></button>
@@ -954,6 +982,36 @@ body.is-standalone .install-btn{display:none!important}
 <div class="party" id="partyPanel">
   <div class="ph"><div class="ph-t"><div class="pdot" id="partyDot" style="display:none"></div>🎧 Nghe chung</div><button class="ph-x" onclick="closeParty()">✕</button></div>
   <div class="pb-body" id="partyBody"></div>
+</div>
+
+<!-- V2: FULLSCREEN PLAYER -->
+<div class="full-player" id="fullPlayer">
+  <div class="fp-hd">
+    <button onclick="toggleFullPlayer()">⌄</button>
+    <span>Đang phát</span>
+    <button onclick="openInfoModal()">ℹ️</button>
+  </div>
+  <div class="fp-art-w" id="fpArtWrap" onclick="toggleFullPlayer()">
+    <img class="fp-art" id="fpArt" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%237568a3'%3E%3Cpath d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z'/%3E%3C/svg%3E">
+  </div>
+  <div class="fp-info">
+    <div class="fp-title" id="fpTitle">Chưa phát bài nào</div>
+    <div class="fp-artist" id="fpArtist">—</div>
+  </div>
+  <div class="fp-lyrics" id="fpLyrics"></div>
+  <div class="fp-controls">
+    <button class="pc" onclick="playPrev()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+    <button class="pc main" onclick="togglePlay()" style="width:64px;height:64px"><svg id="fpPlayIcon" viewBox="0 0 24 24" style="width:32px;height:32px"><path d="M8 5v14l11-7z"/></svg></button>
+    <button class="pc" onclick="playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
+  </div>
+</div>
+
+<!-- V2: PITCH SHIFT POPUP -->
+<div class="pitch-pop" id="pitchPop">
+  <div class="pitch-hd">Đổi tông (Pitch)</div>
+  <div class="pitch-val" id="pitchVal">0 st</div>
+  <input type="range" class="pitch-slider" id="pitchSlider" min="-6" max="6" step="1" value="0" oninput="setPitch(this.value)">
+  <div style="display:flex;justify-content:center;margin-top:5px"><button style="font-size:11px;font-weight:800;color:var(--tx2);background:var(--s2);padding:5px 10px;border-radius:6px" onclick="setPitch(0);document.getElementById('pitchSlider').value=0">Reset</button></div>
 </div>
 
 <div class="mbg" id="infoModal" onclick="if(event.target===this)closeModal('infoModal')">
@@ -1006,6 +1064,12 @@ body.is-standalone .install-btn{display:none!important}
     <div class="krow"><span>Tìm kiếm</span><span class="kbd">/</span></div>
     <div class="krow" style="cursor:pointer;border-top:1px solid var(--br);padding-top:14px;margin-top:6px" onclick="toggleSmartAuto()"><span>🎯 Smart Auto-Next</span><span class="kbd" id="smartAutoState">Bật</span></div>
     <div class="krow" style="cursor:pointer" onclick="closeModal('helpModal');setTimeout(()=>openModal('cleanModal'),200)"><span>🧹 Tự động xoá lịch sử</span><span class="kbd">→</span></div>
+    
+    <!-- V2: Data Saver & Backup -->
+    <div class="krow" style="cursor:pointer" onclick="exportData()"><span>📤 Sao lưu dữ liệu (Playlist)</span><span class="kbd">Copy</span></div>
+    <div class="krow" style="cursor:pointer" onclick="importData()"><span>📥 Phục hồi dữ liệu</span><span class="kbd">Paste</span></div>
+    <div class="krow" style="cursor:pointer" onclick="toggleDataSaver()"><span>📶 Data Saver (Tiết kiệm 4G)</span><span class="kbd" id="dataSaverState">Tắt</span></div>
+
     <div class="krow" style="cursor:pointer;background:rgba(244,63,94,.1);padding:12px;border-radius:10px;margin-top:12px;border:1px solid rgba(244,63,94,.3)" onclick="hardResetApp()">
       <span style="color:#f43f5e">🔄 Xoá cache & tải lại</span>
       <span class="kbd" style="background:#f43f5e;color:#fff">Bấm</span>
@@ -1033,9 +1097,7 @@ body.is-standalone .install-btn{display:none!important}
   <div class="modal">
     <button class="m-x" onclick="closeModal('viewModeModal')">✕</button>
     <h2 class="m-h">📐 Chế độ hiển thị</h2>
-    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:16px;line-height:1.6">
-      Chọn giao diện phù hợp để không bị ẩn chức năng
-    </div>
+    <div style="font-size:12.5px;color:var(--tx3);margin-bottom:16px;line-height:1.6">Chọn giao diện phù hợp để không bị ẩn chức năng</div>
     <div style="display:flex;flex-direction:column;gap:10px" id="viewModeList"></div>
     <div id="viewModeWarn" style="display:none;padding:10px 12px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.3);border-radius:10px;font-size:11.5px;color:#fb923c;line-height:1.6;margin-top:10px">
       ⚠️ Bạn đang dùng <b>desktop/tablet</b>. Chế độ Đầy đủ chỉ có tác dụng khác biệt trên <b>mobile (&lt;768px)</b>.
@@ -1106,6 +1168,7 @@ body.is-standalone .install-btn{display:none!important}
   <div class="speed-item" data-speed="1.5" onclick="setSpeed(1.5)">1.5x</div>
   <div class="speed-item" data-speed="2" onclick="setSpeed(2)">2x</div>
 </div>
+
 <div class="eq-panel" id="eqPanel">
   <div class="eq-hd"><span>🎚️ Equalizer</span><div id="autoEqBadge"><span class="dot"></span> Auto</div><div class="eq-hd-x" onclick="toggleEQPanel(event)">✕</div></div>
   <div class="eq-row"><span class="eq-row-lbl">Bass</span><input type="range" class="eq-slider" id="eqBass" min="-12" max="12" step="1" value="0"><span class="eq-val" id="eqBassVal">0dB</span></div>
@@ -1180,6 +1243,7 @@ document.addEventListener('keydown', e => {
     document.querySelectorAll('.mbg.on').forEach(m => m.classList.remove('on'));
     document.getElementById('partyPanel')?.classList.remove('on');
     if(document.getElementById('videoOv')?.classList.contains('on')) closeVideo();
+    $('fullPlayer')?.classList.remove('on');
   }
 });
 
@@ -1193,18 +1257,14 @@ window.addEventListener('resize', () => {
 // ========== STATE ==========
 const S = {
   curId:null, curInfo:null, curSrc:null, source:'soundcloud', view:'home',
-  shuffle:false, loop:'off',
-  context: [],
-  contextIdx: -1,
+  shuffle:false, loop:'off', context: [], contextIdx: -1,
   volume: parseFloat(localStorage.getItem('nv_vol')||'0.8'),
   favorites: JSON.parse(localStorage.getItem('nv_favs')||'[]'),
   history: JSON.parse(localStorage.getItem('nv_hist')||'[]'),
   playlists: JSON.parse(localStorage.getItem('nv_pls')||'[]'),
-  curPlId:null,
-  queue: JSON.parse(localStorage.getItem('nv_queue')||'[]'),
+  curPlId:null, queue: JSON.parse(localStorage.getItem('nv_queue')||'[]'),
   theme: localStorage.getItem('nv_theme')||'galaxy',
-  lyricsTabActive:false,
-  boost: parseFloat(localStorage.getItem('nv_boost')||'1')||1
+  lyricsTabActive:false, boost: parseFloat(localStorage.getItem('nv_boost')||'1')||1
 };
 
 const PARTY = {
@@ -1213,6 +1273,10 @@ const PARTY = {
   socket:null, connected:false, suppress:false,
   pollTimer:null, pollFallback:false
 };
+
+// V2 State
+let _isDataSaver = false;
+let _currentPitch = 0;
 
 // ========== HELPERS ==========
 const $ = id => document.getElementById(id);
@@ -1289,15 +1353,53 @@ function setSource(s){
 }
 setSource('soundcloud');
 
-// ========== SEARCH ==========
-let searchTimer;
+// ========== SEARCH & SUGGEST ==========
+let searchTimer, suggestTimer;
 $('q').addEventListener('input', e => {
   clearTimeout(searchTimer);
+  clearTimeout(suggestTimer);
   const v = e.target.value.trim();
-  if(v.length < 2) return;
-  searchTimer = setTimeout(()=>doSearch(v), 500);
+  const sugEl = $('searchSuggestions');
+  
+  if(v.length < 2) {
+    sugEl.style.display = 'none';
+    return;
+  }
+
+  suggestTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/suggest?q=' + encodeURIComponent(v));
+      const data = await r.json();
+      if(data && data.length > 0) {
+        sugEl.innerHTML = data.map(s => `<div class="sug-item" onclick="pickSuggest('${esc(s)}')">${esc(s)}</div>`).join('');
+        sugEl.style.display = 'block';
+      } else {
+        sugEl.style.display = 'none';
+      }
+    } catch { sugEl.style.display = 'none'; }
+  }, 300);
+
+  searchTimer = setTimeout(()=>doSearch(v), 800);
 });
-$('q').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(e.target.value.trim()); });
+
+$('q').addEventListener('keydown', e => { 
+  if(e.key==='Enter') {
+    $('searchSuggestions').style.display = 'none';
+    doSearch(e.target.value.trim()); 
+  }
+});
+
+window.pickSuggest = function(text) {
+  $('q').value = text;
+  $('searchSuggestions').style.display = 'none';
+  doSearch(text);
+}
+
+document.addEventListener('click', e => {
+  if(!e.target.closest('.search')) {
+    $('searchSuggestions').style.display = 'none';
+  }
+});
 
 async function doSearch(q){
   if(!q) return;
@@ -1533,8 +1635,9 @@ function initSpeed(){
   updateSpeedUI(s);
 }
 function setSpeed(s){
-  audio.playbackRate = s;
   localStorage.setItem(SPEED_KEY, s);
+  // Cập nhật lại tốc độ kết hợp với Pitch hiện tại
+  setPitch(_currentPitch);
   updateSpeedUI(s);
   $('speedPop').classList.remove('on');
   toast('⚡ Tốc độ: '+s+'x','ok');
@@ -1547,6 +1650,7 @@ function toggleSpeedPop(e){
   e?.stopPropagation();
   $('speedPop').classList.toggle('on');
   $('eqPanel').classList.remove('on');
+  $('pitchPop').classList.remove('on');
 }
 
 // ========== EQ + BOOST + AUTO EQ ==========
@@ -1735,6 +1839,7 @@ function toggleEQPanel(e){
   e?.stopPropagation();
   $('eqPanel').classList.toggle('on');
   $('speedPop').classList.remove('on');
+  $('pitchPop').classList.remove('on');
   if($('eqPanel').classList.contains('on')) initEQ();
 }
 
@@ -1768,9 +1873,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 document.addEventListener('click', e => {
-  if(!e.target.closest('.speed-pop,.eq-panel,.speed-btn,.pc[onclick*="toggleEQPanel"]')){
+  if(!e.target.closest('.speed-pop,.eq-panel,.pitch-pop,.speed-btn')){
     $('speedPop')?.classList.remove('on');
     $('eqPanel')?.classList.remove('on');
+    $('pitchPop')?.classList.remove('on');
   }
 });
 
@@ -1781,6 +1887,22 @@ document.addEventListener('click', ()=>{ if(audioCtx && audioCtx.state==='suspen
 let hlsInstance = null;
 const audio = $('audio');
 audio.volume = S.volume;
+
+// Override playTrack to send Quality and Update Dynamic Theme
+const originalPlayTrack = playTrack;
+window.playTrack = async function(vid, meta) {
+  meta = meta || {};
+  meta.quality = _isDataSaver ? 'low' : 'high';
+  await originalPlayTrack(vid, meta);
+  
+  const thumb = $('pbArt').src;
+  if(thumb) updateDynamicTheme(thumb);
+  if($('fullPlayer').classList.contains('on')) {
+    $('fpArt').src = thumb;
+    $('fpTitle').textContent = $('pbT').textContent;
+    $('fpArtist').textContent = $('pbA').textContent;
+  }
+};
 
 async function playTrack(vid, meta){
   if(typeof vid==='string' && vid.includes('soundcloud')){
@@ -1797,7 +1919,7 @@ async function playTrack(vid, meta){
   $('playBtn').classList.add('load');
   if(hlsInstance){ try{hlsInstance.destroy();}catch(e){} hlsInstance = null; }
   try{
-    const r = await fetch('/api/play', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({video_id:vid, mode:'audio', source:S.curSrc})});
+    const r = await fetch('/api/play', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({video_id:vid, mode:'audio', source:S.curSrc, quality: meta.quality || 'high'})});
     const d = await r.json();
     if(d.error){ $('playBtn').classList.remove('load'); toast('Lỗi: '+d.error,'err'); return; }
     S.curInfo = {...d, id:vid, source:S.curSrc};
@@ -2000,6 +2122,7 @@ audio.addEventListener('play', ()=>{
   $('playBtn').classList.remove('load');
   $('playIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
   $('npPIc').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+  $('fpPlayIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
   $('player').classList.add('playing');
   $('rp').classList.add('playing');
   if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -2011,11 +2134,20 @@ audio.addEventListener('play', ()=>{
 audio.addEventListener('pause', ()=>{
   $('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
   $('npPIc').innerHTML = '<path d="M8 5v14l11-7z"/>';
+  $('fpPlayIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
   $('player').classList.remove('playing');
   $('rp').classList.remove('playing');
 });
 
 audio.addEventListener('ended', ()=>playNext());
+audio.addEventListener('error', ()=>{
+  const e = audio.error;
+  if(!e) return;
+  const codes = {1:'Bị huỷ (aborted)', 2:'Lỗi mạng', 3:'Lỗi giải mã (file hỏng/sai codec)', 4:'Định dạng không hỗ trợ'};
+  $('playBtn').classList.remove('load');
+  toast('❌ '+(codes[e.code] || 'Lỗi phát nhạc'), 'err');
+  console.error('[Audio] Error code:', e.code, '| src:', audio.src);
+});
 
 $('progressBar').addEventListener('click', e => {
   const r = e.currentTarget.getBoundingClientRect();
@@ -2263,6 +2395,8 @@ function openModal(id){
     setTimeout(()=>{
       const el = $('smartAutoState');
       if(el) el.textContent = isSmartAutoOn()?'Bật':'Tắt';
+      const dsv = $('dataSaverState');
+      if(dsv) dsv.textContent = _isDataSaver?'Bật':'Tắt';
     }, 50);
   }
   if(id==='cleanModal'){
@@ -2743,6 +2877,132 @@ if('serviceWorker' in navigator){
   }).catch(()=>{});
 }
 
+// ========== V2 FEATURES ==========
+
+// --- 1. FULL SCREEN PLAYER ---
+let _fpOpen = false;
+function toggleFullPlayer() {
+  _fpOpen = !_fpOpen;
+  $('fullPlayer').classList.toggle('on', _fpOpen);
+  if(_fpOpen) {
+    $('fpArt').src = $('pbArt').src;
+    $('fpTitle').textContent = $('pbT').textContent;
+    $('fpArtist').textContent = $('pbA').textContent;
+    const lyricsWrap = $('lyricsView');
+    if(lyricsWrap) $('fpLyrics').innerHTML = lyricsWrap.innerHTML;
+  }
+}
+let _touchStartX = 0;
+$('fpArt').addEventListener('touchstart', e => { _touchStartX = e.changedTouches[0].screenX; }, {passive:true});
+$('fpArt').addEventListener('touchend', e => {
+  const diff = _touchStartX - e.changedTouches[0].screenX;
+  if(diff > 50) playNext();
+  else if(diff < -50) playPrev();
+}, {passive:true});
+
+// --- 2. PITCH SHIFT ---
+function togglePitchPop(e) { 
+  e?.stopPropagation(); 
+  $('pitchPop').classList.toggle('on'); 
+  $('speedPop').classList.remove('on'); 
+  $('eqPanel').classList.remove('on');
+}
+function setPitch(val) {
+  _currentPitch = parseFloat(val);
+  $('pitchVal').textContent = val + ' st';
+  const baseSpeed = parseFloat(localStorage.getItem(SPEED_KEY) || '1');
+  const rate = baseSpeed * Math.pow(2, val / 12);
+  audio.preservesPitch = false;
+  audio.playbackRate = rate;
+}
+
+// --- 3. DATA SAVER ---
+function initDataSaver() {
+  if (navigator.connection && (navigator.connection.type === 'cellular' || navigator.connection.saveData)) {
+    _isDataSaver = true;
+    const dsv = $('dataSaverState');
+    if(dsv) dsv.textContent = 'Bật';
+    setTimeout(()=>toast('📶 Đã bật Data Saver (4G)', 'ok'), 2000);
+  }
+}
+initDataSaver();
+
+function toggleDataSaver() {
+  _isDataSaver = !_isDataSaver;
+  const dsv = $('dataSaverState');
+  if(dsv) dsv.textContent = _isDataSaver ? 'Bật' : 'Tắt';
+  toast('Data Saver: ' + (_isDataSaver ? 'BẬT' : 'TẮT'), 'ok');
+}
+
+// --- 4. DYNAMIC THEME ---
+async function updateDynamicTheme(thumbUrl) {
+  if(!thumbUrl) return;
+  try {
+    const proxyUrl = '/api/proxy_image?url=' + encodeURIComponent(thumbUrl);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = proxyUrl;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1; canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        document.documentElement.style.setProperty('--accent', hex);
+        document.documentElement.style.setProperty('--accent-soft', `rgba(${r},${g},${b},0.15)`);
+        document.documentElement.style.setProperty('--accent-2', hex);
+      } catch(e) { console.warn('Canvas bị chặn bởi CORS, bỏ qua Dynamic Theme.'); }
+    };
+  } catch (e) { console.warn('Lỗi lấy màu ảnh:', e); }
+}
+
+// --- 5. CROSSFADE (Fade out 3s cuối) ---
+audio.addEventListener('timeupdate', () => {
+  if(!audio.duration) return;
+  const timeLeft = audio.duration - audio.currentTime;
+  if(timeLeft <= 3 && timeLeft > 0 && !audio.paused && !window._isCrossfading) {
+    window._isCrossfading = true;
+    const fade = setInterval(() => {
+      if(audio.volume > 0.05) {
+        audio.volume -= 0.05;
+      } else {
+        clearInterval(fade);
+        audio.volume = S.volume;
+        window._isCrossfading = false;
+      }
+    }, 100);
+  }
+});
+
+// --- 6. BACKUP / RESTORE DATA ---
+function exportData() {
+  const data = { favs: S.favorites, pls: S.playlists, hist: S.history };
+  const b64 = btoa(encodeURIComponent(JSON.stringify(data)));
+  navigator.clipboard.writeText(b64).then(()=>{
+    alert('Đã copy mã sao lưu vào bộ nhớ tạm! Hãy lưu lại (Note, Zalo...).\n\nMã của bạn:\n' + b64);
+  });
+}
+function importData() {
+  const b64 = prompt('Dán mã sao lưu vào đây:');
+  if(!b64) return;
+  try {
+    const data = JSON.parse(decodeURIComponent(atob(b64)));
+    if(confirm('Ghi đè toàn bộ Dữ liệu hiện tại bằng bản sao lưu này?')) {
+      S.favorites = data.favs || [];
+      S.playlists = data.pls || [];
+      S.history = data.hist || [];
+      save();
+      renderHome(); renderPlaylists(); renderFavorites(); renderHistory();
+      toast('✅ Phục hồi thành công!', 'ok');
+    }
+  } catch (e) {
+    toast('❌ Mã sao lưu không hợp lệ!', 'err');
+  }
+}
+
+
 // ========== INIT ==========
 window.addEventListener('load', () => {
   setTimeout(()=>{
@@ -2820,7 +3080,7 @@ if(window.innerWidth < 768 && !localStorage.getItem('nv_vm_hint')){
 }
 
 setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi bài','ok'), 1400);
-console.log(`[Nova] Mobile: ${window.matchMedia('(max-width: 768px)').matches} · ViewMode: ${_viewMode} · AutoEQ: ${localStorage.getItem(AUTO_EQ_KEY)==='1'?'ON':'OFF'} · PWA: ${_isStandalone?'installed':'browser'}`);
+console.log(`[Nova V2] Mobile: ${window.matchMedia('(max-width: 768px)').matches} · ViewMode: ${_viewMode} · AutoEQ: ${localStorage.getItem(AUTO_EQ_KEY)==='1'?'ON':'OFF'} · PWA: ${_isStandalone?'installed':'browser'}`);
 </script>
 </body>
-            </html>
+              </html>
