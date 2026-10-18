@@ -1,7 +1,6 @@
 Flask==3.0.3
 yt-dlp>=2024.11.18
 requests
-flask-socketio
-eventlet
-gunicorn
 Pillow
+gunicorn
+Flask-Compress
