@@ -49,9 +49,6 @@ img{display:block;max-width:100%}
 @keyframes eq3{0%,100%{height:50%}50%{height:90%}}
 @keyframes bounceIn{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 @keyframes twinkle{0%,100%{opacity:.2}50%{opacity:1}}
-@keyframes cardIn3D{0%{opacity:0;transform:perspective(1200px) rotateY(-45deg) translateY(30px) scale(.85)}60%{opacity:1;transform:perspective(1200px) rotateY(6deg) translateY(-3px) scale(1.02)}100%{opacity:1;transform:perspective(1200px) rotateY(0) translateY(0) scale(1)}}
-@keyframes particleFly{0%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(calc(-50% + var(--px)),calc(-50% + var(--py))) scale(0);opacity:0}}
-@keyframes noteFloat{0%{transform:translateY(0) rotate(0);opacity:.9}100%{transform:translateY(-80px) rotate(180deg);opacity:0}}
 @keyframes beatGlow{0%,100%{box-shadow:0 0 20px var(--accent-soft)}50%{box-shadow:0 0 35px var(--accent),0 0 70px var(--accent-2)}}
 @keyframes flash{0%{opacity:0}15%{opacity:.5}100%{opacity:0}}
 @keyframes confettiFall{0%{transform:translateY(-100vh) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
@@ -594,7 +591,7 @@ body{padding:0;padding-bottom:180px;cursor:auto}
 .speed-pop.on{opacity:1;pointer-events:auto;transform:translateY(0)}
 .speed-item{padding:8px 14px;border-radius:9px;font-size:12px;font-weight:700;color:var(--tx2);text-align:center;transition:all .15s;cursor:pointer}
 .speed-item.on{background:var(--accent-soft);color:var(--accent)}
-@media(max-width:768px){.eq-panel,.speed-pop{bottom:184px;right:12px;left:12px;width:auto}.speed-pop{left:auto;width:120px}}
+@media(max-width:768px){.eq-panel,.speed-pop,.pitch-pop{bottom:184px;right:12px;left:12px;width:auto}.speed-pop,.pitch-pop{left:auto;width:120px}}
 
 /* ================================================================ */
 /* ================== FINAL DRAWER - SIMPLEST ==================== */
@@ -695,6 +692,13 @@ body.is-standalone .install-btn{display:none!important}
 .pitch-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer}
 .pitch-val{text-align:center;font-size:14px;font-weight:800;color:var(--accent);font-family:monospace}
 @media(max-width:768px){.pitch-pop{bottom:184px;right:12px;width:220px}}
+
+/* ===== SEARCH SUGGEST ===== */
+.search{position:relative}
+.search-suggest{position:absolute;top:calc(100% + 4px);left:0;right:0;background:rgba(15,12,35,.98);backdrop-filter:blur(30px);border:1px solid var(--br2);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.6);z-index:100;display:none;max-height:240px;overflow-y:auto}
+.sug-item{padding:11px 16px;font-size:13px;color:var(--tx2);cursor:pointer;border-bottom:1px solid var(--br);transition:all .2s}
+.sug-item:last-child{border-bottom:none}
+.sug-item:hover{background:var(--accent-soft);color:var(--tx)}
 </style>
 </head>
 <body>
@@ -928,11 +932,11 @@ body.is-standalone .install-btn{display:none!important}
           <div class="lyrics-bar">
             <div class="lyrics-status" id="lyricsStatus">Chưa có lời</div>
             <div class="lyrics-actions">
-              <button class="lyrics-btn" onclick="loadLyricsFromAPI()" title="Tải lại"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+              <button class="lyrics-btn" onclick="loadLyrics()" title="Tải lại"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
               <button class="lyrics-btn pri" onclick="editLyrics()" title="Sửa"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
             </div>
           </div>
-          <div class="lyrics-view" id="lyricsView"><div class="lyrics-text loading" id="lyricsBody">Đang tải...</div></div>
+          <div class="lyrics-view" id="lyricsView"><div id="lyricsBody" style="width:100%"></div></div>
           <div class="lyrics-editor" id="lyricsEditor" style="display:none">
             <textarea class="lyrics-textarea" id="lyricsInput" placeholder="Dán lời bài hát vào đây... Mẹo: [00:15] đầu dòng để đồng bộ"></textarea>
             <div class="lyrics-hint">💡 Thêm <b>[mm:ss]</b> đầu dòng để lyrics tự chạy</div>
@@ -1627,7 +1631,7 @@ function removeFromQueue(id){
   save(); renderQueue();
 }
 
-// ========== SPEED ==========
+// ========== SPEED & PITCH ==========
 const SPEED_KEY = 'nv_speed';
 function initSpeed(){
   const s = parseFloat(localStorage.getItem(SPEED_KEY)||'1');
@@ -1651,6 +1655,21 @@ function toggleSpeedPop(e){
   $('speedPop').classList.toggle('on');
   $('eqPanel').classList.remove('on');
   $('pitchPop').classList.remove('on');
+}
+
+function togglePitchPop(e) { 
+  e?.stopPropagation(); 
+  $('pitchPop').classList.toggle('on'); 
+  $('speedPop').classList.remove('on'); 
+  $('eqPanel').classList.remove('on');
+}
+function setPitch(val) {
+  _currentPitch = parseFloat(val);
+  $('pitchVal').textContent = val + ' st';
+  const baseSpeed = parseFloat(localStorage.getItem(SPEED_KEY) || '1');
+  const rate = baseSpeed * Math.pow(2, val / 12);
+  audio.preservesPitch = false;
+  audio.playbackRate = rate;
 }
 
 // ========== EQ + BOOST + AUTO EQ ==========
@@ -2888,8 +2907,14 @@ function toggleFullPlayer() {
     $('fpArt').src = $('pbArt').src;
     $('fpTitle').textContent = $('pbT').textContent;
     $('fpArtist').textContent = $('pbA').textContent;
-    const lyricsWrap = $('lyricsView');
-    if(lyricsWrap) $('fpLyrics').innerHTML = lyricsWrap.innerHTML;
+    // Load lyrics if available
+    if(_lyricsData.length === 0) {
+      loadLyrics();
+    } else {
+      if($('lyricsBody')) $('fpLyrics').innerHTML = $('lyricsBody').innerHTML;
+      _currentLyricIdx = -1; 
+      syncLyrics();
+    }
   }
 }
 let _touchStartX = 0;
@@ -2900,23 +2925,7 @@ $('fpArt').addEventListener('touchend', e => {
   else if(diff < -50) playPrev();
 }, {passive:true});
 
-// --- 2. PITCH SHIFT ---
-function togglePitchPop(e) { 
-  e?.stopPropagation(); 
-  $('pitchPop').classList.toggle('on'); 
-  $('speedPop').classList.remove('on'); 
-  $('eqPanel').classList.remove('on');
-}
-function setPitch(val) {
-  _currentPitch = parseFloat(val);
-  $('pitchVal').textContent = val + ' st';
-  const baseSpeed = parseFloat(localStorage.getItem(SPEED_KEY) || '1');
-  const rate = baseSpeed * Math.pow(2, val / 12);
-  audio.preservesPitch = false;
-  audio.playbackRate = rate;
-}
-
-// --- 3. DATA SAVER ---
+// --- 2. DATA SAVER ---
 function initDataSaver() {
   if (navigator.connection && (navigator.connection.type === 'cellular' || navigator.connection.saveData)) {
     _isDataSaver = true;
@@ -2934,7 +2943,7 @@ function toggleDataSaver() {
   toast('Data Saver: ' + (_isDataSaver ? 'BẬT' : 'TẮT'), 'ok');
 }
 
-// --- 4. DYNAMIC THEME ---
+// --- 3. DYNAMIC THEME ---
 async function updateDynamicTheme(thumbUrl) {
   if(!thumbUrl) return;
   try {
@@ -2958,7 +2967,7 @@ async function updateDynamicTheme(thumbUrl) {
   } catch (e) { console.warn('Lỗi lấy màu ảnh:', e); }
 }
 
-// --- 5. CROSSFADE (Fade out 3s cuối) ---
+// --- 4. CROSSFADE (Fade out 3s cuối) ---
 audio.addEventListener('timeupdate', () => {
   if(!audio.duration) return;
   const timeLeft = audio.duration - audio.currentTime;
@@ -2976,7 +2985,7 @@ audio.addEventListener('timeupdate', () => {
   }
 });
 
-// --- 6. BACKUP / RESTORE DATA ---
+// --- 5. BACKUP / RESTORE DATA ---
 function exportData() {
   const data = { favs: S.favorites, pls: S.playlists, hist: S.history };
   const b64 = btoa(encodeURIComponent(JSON.stringify(data)));
@@ -3002,6 +3011,159 @@ function importData() {
   }
 }
 
+// ========== HỆ THỐNG LYRICS V2 ==========
+let _lyricsData = [];
+let _currentLyricIdx = -1;
+
+async function loadLyrics() {
+  if (!S.curInfo) return;
+  const artist = S.curInfo.uploader || '';
+  const title = S.curInfo.title || '';
+  
+  const setStatus = (msg) => {
+    const el = $('lyricsStatus');
+    if(el) el.textContent = msg;
+    if($('fpLyrics')) $('fpLyrics').innerHTML = `<div style="text-align:center;padding:40px;color:var(--tx3)">${msg}</div>`;
+  };
+  const setBody = (html) => {
+    if($('lyricsBody')) $('lyricsBody').innerHTML = html;
+    if($('fpLyrics')) $('fpLyrics').innerHTML = html;
+  };
+
+  setStatus('Đang tải...');
+  
+  const saved = localStorage.getItem('nv_lyric_' + S.curId);
+  if(saved) {
+    setStatus('Lời tự nhập');
+    parseAndRenderLyrics(saved);
+    return;
+  }
+
+  try {
+    let cleanArtist = artist.replace(/official|music|video|lyrics|audio|ft\.|feat\./gi, '').trim();
+    let cleanTitle = title.split('|')[0].replace(/official|music|video|lyrics|audio/gi, '').trim();
+    
+    const r = await fetch(`/api/lyrics?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`);
+    const data = await r.json();
+    
+    if (data.lyrics) {
+      setStatus('Lời bài hát');
+      parseAndRenderLyrics(data.lyrics);
+    } else {
+      throw new Error('Không tìm thấy');
+    }
+  } catch (err) {
+    setStatus('Không có lời bài hát');
+    const btnHtml = `<div style="text-align:center;padding:20px">
+      <div style="font-size:40px;margin-bottom:10px">🎤</div>
+      <button onclick="editLyrics()" style="padding:10px 20px;border-radius:10px;background:var(--grad);color:#fff;font-weight:700">Tự nhập lời bài hát</button>
+    </div>`;
+    setBody(btnHtml);
+  }
+}
+
+function parseAndRenderLyrics(text) {
+  _lyricsData = [];
+  const lines = text.split('\n');
+  const lrcRegex = /^\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
+  let hasLrc = false;
+  let html = '';
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) continue;
+    const match = line.match(lrcRegex);
+    if (match) {
+      hasLrc = true;
+      const min = parseInt(match[1]);
+      const sec = parseInt(match[2]);
+      const ms = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+      const time = min * 60 + sec + ms / 1000;
+      const textContent = match[4].trim();
+      if (textContent) {
+        _lyricsData.push({ time, text: textContent });
+      }
+    } else if (!hasLrc) {
+      _lyricsData.push({ time: -1, text: line });
+    }
+  }
+
+  if (hasLrc) {
+    _lyricsData.sort((a, b) => a.time - b.time);
+    html = _lyricsData.map((l, i) => `<div class="lyrics-line" data-time="${l.time}" data-idx="${i}">${esc(l.text)}</div>`).join('');
+  } else {
+    html = `<div class="lyrics-text">${esc(text)}</div>`;
+  }
+
+  const bodyHtml = `<div class="lyrics-view-inner" style="display:flex;flex-direction:column;gap:4px;padding:20px 0;">${html}</div>`;
+  
+  if($('lyricsBody')) $('lyricsBody').innerHTML = bodyHtml;
+  if($('fpLyrics')) {
+    $('fpLyrics').innerHTML = bodyHtml;
+    $('fpLyrics').querySelectorAll('.lyrics-line').forEach(el => {
+      el.onclick = () => {
+        const t = parseFloat(el.dataset.time);
+        if(t >= 0) audio.currentTime = t;
+      };
+    });
+  }
+}
+
+let _lastLyricSync = 0;
+function syncLyrics() {
+  if (!_lyricsData.length || _lyricsData[0].time === -1) return;
+  if (audio.paused) return;
+
+  const curTime = audio.currentTime;
+  let activeIdx = -1;
+  for (let i = 0; i < _lyricsData.length; i++) {
+    if (curTime >= _lyricsData[i].time) {
+      activeIdx = i;
+    } else {
+      break;
+    }
+  }
+
+  if (activeIdx !== _currentLyricIdx) {
+    _currentLyricIdx = activeIdx;
+    
+    const updateUI = (containerId) => {
+      const container = $(containerId);
+      if (!container) return;
+      container.querySelectorAll('.lyrics-line').forEach(el => el.classList.remove('active'));
+      const activeEl = container.querySelector(`.lyrics-line[data-idx="${activeIdx}"]`);
+      if (activeEl) {
+        activeEl.classList.add('active');
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+    
+    updateUI('lyricsBody');
+    updateUI('fpLyrics');
+  }
+}
+
+audio.addEventListener('timeupdate', syncLyrics);
+
+function editLyrics() {
+  $('lyricsEditor').style.display = 'flex';
+  $('lyricsView').style.display = 'none';
+  const saved = localStorage.getItem('nv_lyric_' + S.curId) || '';
+  $('lyricsInput').value = saved;
+}
+function cancelEditLyrics() {
+  $('lyricsEditor').style.display = 'none';
+  $('lyricsView').style.display = 'flex';
+}
+function saveLyrics() {
+  const text = $('lyricsInput').value.trim();
+  if(!text) return;
+  localStorage.setItem('nv_lyric_' + S.curId, text);
+  cancelEditLyrics();
+  parseAndRenderLyrics(text);
+  $('lyricsStatus').textContent = 'Lời tự nhập';
+  toast('Đã lưu lời bài hát', 'ok');
+}
 
 // ========== INIT ==========
 window.addEventListener('load', () => {
