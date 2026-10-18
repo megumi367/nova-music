@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file, send_from_directory
-import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile
+from flask_compress import Compress
+import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, io
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 try:
@@ -10,6 +11,7 @@ except ImportError:
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+Compress(app)
 
 stream_cache = {}
 tasks = {}
@@ -35,6 +37,25 @@ try:
     FFMPEG_OK = True
 except: pass
 
+# ========== AUTO CLEANUP DOWNLOADS ==========
+def cleanup_downloads_loop():
+    while True:
+        time.sleep(3600) # Chạy mỗi 1 tiếng
+        now = time.time()
+        try:
+            if os.path.exists(DOWNLOAD_DIR):
+                for filename in os.listdir(DOWNLOAD_DIR):
+                    filepath = os.path.join(DOWNLOAD_DIR, filename)
+                    if os.path.isfile(filepath) and os.stat(filepath).st_mtime < now - 7200:
+                        os.remove(filepath)
+            for tid in list(tasks.keys()):
+                if tasks[tid].get('status') in ('done', 'error'):
+                    if now - tasks[tid].get('_ts', now) > 7200:
+                        del tasks[tid]
+        except Exception as e:
+            print("Cleanup error:", e)
+
+threading.Thread(target=cleanup_downloads_loop, daemon=True).start()
 
 def base_opts():
     o = {
@@ -47,7 +68,6 @@ def base_opts():
         o['cookiefile'] = COOKIES_FILE
     return o
 
-
 def run_to(fn, timeout=30, *args):
     f = _exec.submit(fn, *args)
     try:
@@ -55,14 +75,12 @@ def run_to(fn, timeout=30, *args):
     except FutureTimeout:
         raise Exception(f"Timeout {timeout}s — chạy: pip install -U yt-dlp")
 
-
 YT_CLIENTS = [
     ['ios'], ['android_vr'], ['mweb'], ['tv_embedded'],
     ['web_embedded'], ['android'], ['web_safari'],
 ]
 
-
-def extract_youtube(vid, mode='audio', timeout=30):
+def extract_youtube(vid, mode='audio', timeout=30, quality='high'):
     def _try(client_list):
         o = base_opts()
         if mode == 'video':
@@ -73,12 +91,10 @@ def extract_youtube(vid, mode='audio', timeout=30):
                 'best[height<=720]/best'
             )
         else:
-            # BẮT BUỘC m4a/mp4 để tương thích 100% Android/iOS
-            o['format'] = (
-                'bestaudio[ext=m4a][acodec!=none]/'
-                'bestaudio[ext=mp4][acodec!=none]/'
-                'bestaudio[acodec!=none]'
-            )
+            if quality == 'low':
+                o['format'] = 'bestaudio[ext=m4a][abr<=64]/bestaudio[ext=mp4][abr<=64]/bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio'
+            else:
+                o['format'] = 'bestaudio[ext=m4a][abr<=128]/bestaudio[ext=mp4][abr<=128]/bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio'
         o['extractor_args'] = {'youtube': {'player_client': client_list}}
         o['http_headers'] = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -111,7 +127,6 @@ def extract_youtube(vid, mode='audio', timeout=30):
             continue
     raise Exception(f"YouTube fail: {last_err}")
 
-
 def norm_sc(vid):
     vid = str(vid).strip()
     if vid.isdigit():
@@ -124,7 +139,6 @@ def norm_sc(vid):
     if not u.startswith('http') and '/' in u: return f"https://soundcloud.com/{u}"
     if u.startswith('http'): return u
     raise Exception("SC URL không hợp lệ")
-
 
 def extract_soundcloud(vid, timeout=25):
     def _do():
@@ -139,7 +153,6 @@ def extract_soundcloud(vid, timeout=25):
             return y.extract_info(vid, download=False)
     return run_to(_do, timeout=timeout)
 
-
 def extract_tiktok(vid, mode='audio', timeout=25):
     def _do():
         o = base_opts()
@@ -149,10 +162,9 @@ def extract_tiktok(vid, mode='audio', timeout=25):
             return y.extract_info(vid, download=False)
     return run_to(_do, timeout=timeout)
 
-
-def extract_audio(vid, source='youtube', mode='audio', timeout=30):
+def extract_audio(vid, source='youtube', mode='audio', timeout=30, quality='high'):
     if source == 'youtube':
-        info = extract_youtube(vid, mode=mode, timeout=timeout)
+        info = extract_youtube(vid, mode=mode, timeout=timeout, quality=quality)
     elif source == 'soundcloud':
         info = extract_soundcloud(vid, timeout=timeout)
     elif source == 'tiktok':
@@ -190,21 +202,18 @@ def extract_audio(vid, source='youtube', mode='audio', timeout=30):
         'headers': info.get('http_headers', {}) or {'User-Agent': 'Mozilla/5.0'},
     }
 
-
-def get_cached(vid, source='youtube', mode='audio'):
-    key = f"{source}:{mode}:{vid}"
+def get_cached(vid, source='youtube', mode='audio', quality='high'):
+    key = f"{source}:{mode}:{vid}:{quality}"
     now = time.time()
     if key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
         return stream_cache[key]['data']
-    info = extract_audio(vid, source, mode)
+    info = extract_audio(vid, source, mode, quality=quality)
     ttl = 2400 if source == 'youtube' else 7000
     stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
     return info
 
-
 def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
 def b64d(s): return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
-
 
 def build_sc_url(e):
     for k in ('webpage_url','permalink_url','original_url'):
@@ -217,7 +226,6 @@ def build_sc_url(e):
     tid = e.get('id')
     if tid and str(tid).isdigit(): return f"https://soundcloud.com/tracks/{tid}"
     return None
-
 
 def yt_search(q, limit=20):
     def _do():
@@ -237,7 +245,6 @@ def yt_search(q, limit=20):
             'thumb': thumb, 'channel': e.get('uploader') or e.get('channel') or '', 'source': 'youtube'
         })
     return out
-
 
 def sc_search(q, limit=20):
     def _do():
@@ -261,18 +268,25 @@ def sc_search(q, limit=20):
         })
     return out
 
-
 def detect(url):
     if 'youtube.com' in url or 'youtu.be' in url: return 'youtube'
     if 'soundcloud.com' in url: return 'soundcloud'
     if 'tiktok.com' in url: return 'tiktok'
     return None
 
-
 @app.route('/api/ping')
 def ping():
     return 'pong', 200
 
+@app.route('/api/proxy_image')
+def proxy_image():
+    url = request.args.get('url')
+    if not url: return "Missing URL", 400
+    try:
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        return Response(r.content, mimetype=r.headers.get('Content-Type', 'image/jpeg'), headers={'Cache-Control': 'public, max-age=86400'})
+    except:
+        return "Error", 502
 
 @app.route('/')
 def index():
@@ -280,7 +294,6 @@ def index():
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache', 'Expires': '0',
     }
-
 
 @app.route('/api/search')
 def search():
@@ -293,7 +306,6 @@ def search():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/sc_search')
 def sc_search_route():
     q = request.args.get('q', '').strip()
@@ -304,7 +316,6 @@ def sc_search_route():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/suggest')
 def suggest():
@@ -319,7 +330,6 @@ def suggest():
     except:
         return jsonify([])
 
-
 @app.route('/api/play', methods=['POST'])
 def play():
     try:
@@ -327,11 +337,12 @@ def play():
         vid = b.get('video_id')
         source = b.get('source', 'youtube')
         mode = b.get('mode', 'audio')
+        quality = b.get('quality', 'high')
         if not vid:
             return jsonify({'error': 'Thiếu video_id'}), 400
         if source == 'soundcloud':
             vid = norm_sc(vid)
-        info = get_cached(vid, source, mode)
+        info = get_cached(vid, source, mode, quality=quality)
         resp = {
             'title': info['title'], 'thumbnail': info['thumbnail'], 'duration': info['duration'],
             'uploader': info['uploader'], 'source': source, 'id': info['id'],
@@ -345,7 +356,6 @@ def play():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 400
-
 
 @app.route('/api/parse', methods=['POST'])
 def parse():
@@ -371,7 +381,6 @@ def parse():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
-
 @app.route('/api/lyrics')
 def lyrics():
     artist = request.args.get('artist', '')
@@ -385,7 +394,6 @@ def lyrics():
         return jsonify({'error': 'Không có lời'}), 404
     except:
         return jsonify({'error': 'Không có lời'}), 404
-
 
 def rewrite_m3u8(c, base):
     out = []
@@ -402,7 +410,6 @@ def rewrite_m3u8(c, base):
         else:
             out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
     return '\n'.join(out)
-
 
 @app.route('/hls_proxy')
 def hls_proxy():
@@ -445,7 +452,6 @@ def hls_proxy():
         headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
     )
 
-
 @app.route('/stream/<path:vid>')
 def stream(vid):
     mode = request.args.get('mode', 'audio')
@@ -460,7 +466,6 @@ def stream(vid):
     if info.get('is_hls'):
         return "Dùng /hls_proxy", 400
     
-    # Fix cứng header để không bị YouTube chặn 403
     hdrs = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://www.youtube.com/',
@@ -494,7 +499,6 @@ def stream(vid):
         stream_with_context(req.iter_content(65536)),
         status=req.status_code, headers=h
     )
-
 
 def dl_task(tid, vid, fmt, source):
     def hook(d):
@@ -550,7 +554,6 @@ def dl_task(tid, vid, fmt, source):
         traceback.print_exc()
         tasks[tid].update({'status': 'error', 'error': str(e)})
 
-
 @app.route('/api/download', methods=['POST'])
 def download():
     b = request.json
@@ -558,14 +561,12 @@ def download():
     if not vid: return jsonify({'error': 'Thiếu video_id'}), 400
     if source == 'soundcloud': fmt = 'mp3'
     tid = str(uuid.uuid4())
-    tasks[tid] = {'status': 'downloading', 'progress': '0%', 'source': source}
+    tasks[tid] = {'status': 'downloading', 'progress': '0%', 'source': source, '_ts': time.time()}
     threading.Thread(target=dl_task, args=(tid, vid, fmt, source), daemon=True).start()
     return jsonify({'task_id': tid})
 
-
 @app.route('/api/download_status/<tid>')
 def dl_status(tid): return jsonify(tasks.get(tid, {'status': 'not_found'}))
-
 
 @app.route('/api/download_file/<tid>')
 def dl_file(tid):
@@ -577,7 +578,6 @@ def dl_file(tid):
     mime = 'audio/mpeg' if ext == '.mp3' else 'audio/mp4' if ext in ('.m4a', '.aac') else 'video/mp4'
     return send_file(t['file'], as_attachment=True, download_name=safe + ext, mimetype=mime)
 
-
 # ============ PARTY ============
 def clean_room(code):
     room = PARTY_ROOMS.get(code)
@@ -588,7 +588,6 @@ def clean_room(code):
             del room['members'][sid]
     if not room['members']:
         del PARTY_ROOMS[code]
-
 
 @app.route('/api/party/create', methods=['POST', 'GET'])
 def party_create():
@@ -608,7 +607,6 @@ def party_create():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/party/join', methods=['POST'])
 def party_join():
     try:
@@ -622,7 +620,6 @@ def party_join():
         return jsonify({'code': code, 'sid': sid, 'is_host': user == PARTY_ROOMS[code].get('host')})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/party/state', methods=['POST'])
 def party_state():
@@ -647,7 +644,6 @@ def party_state():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/party/leave', methods=['POST'])
 def party_leave():
     try:
@@ -660,7 +656,6 @@ def party_leave():
         return jsonify({'ok': True})
     except:
         return jsonify({'ok': True})
-
 
 @app.route('/api/party/play', methods=['POST'])
 def party_play():
@@ -675,7 +670,6 @@ def party_play():
     except:
         return jsonify({'ok': False}), 500
 
-
 @app.route('/api/party/sync', methods=['POST'])
 def party_sync():
     try:
@@ -687,7 +681,6 @@ def party_sync():
         return jsonify({'ok': True})
     except:
         return jsonify({'ok': False}), 500
-
 
 @app.route('/api/party/add', methods=['POST'])
 def party_add():
@@ -701,7 +694,6 @@ def party_add():
     except:
         return jsonify({'ok': False}), 500
 
-
 @app.route('/api/party/remove', methods=['POST'])
 def party_remove():
     try:
@@ -713,7 +705,6 @@ def party_remove():
         return jsonify({'ok': True})
     except:
         return jsonify({'ok': False}), 500
-
 
 @app.route('/api/party/chat', methods=['POST'])
 def party_chat():
@@ -730,25 +721,22 @@ def party_chat():
     except:
         return jsonify({'ok': False}), 500
 
-
 # ============ PWA ICON GENERATOR ============
 def _render_nova_icon(size):
     if not HAS_PIL:
         return None
     try:
-        import math, io
+        import math
         img = Image.new('RGBA', (size, size), (2, 1, 10, 255))
         cx, cy = size // 2, size // 2
         R = size / 512.0
 
-        # 1. Radial background
         grad = Image.radial_gradient('L').resize((size, size), Image.LANCZOS)
         mask = Image.eval(grad, lambda x: int((255 - x) * 0.65))
         purple = Image.new('RGBA', (size, size), (58, 16, 96, 255))
         dark = Image.new('RGBA', (size, size), (2, 1, 10, 255))
         img = Image.composite(purple, dark, mask)
 
-        # 2. Outer spikes (4 tia)
         spike = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         sd = ImageDraw.Draw(spike)
         for angle_deg in (0, 90, 180, 270):
@@ -763,7 +751,6 @@ def _render_nova_icon(size):
         img = Image.alpha_composite(img, spike.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.022))))
         img = Image.alpha_composite(img, spike)
 
-        # 3. Halo ring (dịch lên trên)
         ring = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         rd = ImageDraw.Draw(ring)
         ring_cy = int(cy - 40 * R)
@@ -775,7 +762,6 @@ def _render_nova_icon(size):
         img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
         img = Image.alpha_composite(img, ring)
 
-        # 4. Silhouette (đen, đè lên ring)
         sil = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         s = ImageDraw.Draw(sil)
         shoulder_y = int(cy + 110 * R)
@@ -789,14 +775,12 @@ def _render_nova_icon(size):
         head_r = int(70 * R)
         head_cy = int(cy - 15 * R)
         s.ellipse([cx-head_r, head_cy-head_r, cx+head_r, head_cy+head_r], fill=(0,0,0,255))
-        # Crown 3 gai
         crown_y = int(head_cy - head_r + int(18*R))
         s.polygon([(cx-int(52*R), crown_y+int(18*R)), (cx-int(40*R), crown_y-int(42*R)), (cx-int(20*R), crown_y+int(18*R))], fill=(0,0,0,255))
         s.polygon([(cx-int(22*R), crown_y+int(18*R)), (cx, crown_y-int(82*R)), (cx+int(22*R), crown_y+int(18*R))], fill=(0,0,0,255))
         s.polygon([(cx+int(20*R), crown_y+int(18*R)), (cx+int(40*R), crown_y-int(42*R)), (cx+int(52*R), crown_y+int(18*R))], fill=(0,0,0,255))
         img = Image.alpha_composite(img, sil)
 
-        # 5. Vertical beam
         beam = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         bd = ImageDraw.Draw(beam)
         beam_top = int(head_cy + int(10*R))
@@ -805,7 +789,6 @@ def _render_nova_icon(size):
         img = Image.alpha_composite(img, beam.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.014))))
         img = Image.alpha_composite(img, beam)
 
-        # 6. Star 4 cánh ở trán
         star_cx, star_cy = cx, head_cy + int(5*R)
         star_outer = int(46 * R)
         star_inner = int(8 * R)
@@ -836,7 +819,6 @@ def _render_nova_icon(size):
         print(f"Lỗi vẽ icon: {e}")
         return None
 
-
 @app.route('/icon-v3-<int:size>.png')
 def pwa_icon_png_v3(size):
     if size not in (96, 128, 144, 152, 180, 192, 256, 384, 512):
@@ -848,7 +830,6 @@ def pwa_icon_png_v3(size):
         'Cache-Control': 'public, max-age=31536000, immutable',
         'Content-Length': str(len(data)),
     })
-
 
 @app.route('/icon.svg')
 def pwa_icon_svg():
@@ -897,7 +878,6 @@ def pwa_icon_svg():
 </svg>'''
     return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
 
-
 @app.route('/manifest.json')
 def manifest():
     data = {
@@ -929,7 +909,6 @@ def manifest():
     }
     return jsonify(data), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
-
 @app.route('/.well-known/assetlinks.json')
 def assetlinks():
     data = [{
@@ -947,10 +926,9 @@ def assetlinks():
         'Cache-Control': 'no-cache'
     }
 
-
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v17';
+    s = """const C='nova-v18';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -980,7 +958,6 @@ self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting(
 """
     return Response(s, mimetype='application/javascript', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
 
-
 @app.route('/api/debug')
 def debug():
     import yt_dlp as y
@@ -991,12 +968,11 @@ def debug():
         'pillow': HAS_PIL,
     })
 
-
 if __name__ == '__main__':
     import yt_dlp as y
     print(f"\n✅ Nova — yt-dlp {y.version.__version__}")
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
     print(f"   pillow: {'✅' if HAS_PIL else '❌'}")
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
