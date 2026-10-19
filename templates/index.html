@@ -1,1322 +1,810 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="nova">
+<html lang="vi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Nova · Cosmic Sound</title>
-<meta name="theme-color" content="#030005">
-<link rel="manifest" href="/manifest.json">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
-/* ==========================================================================
-   1. CORE VARIABLES & THEME (COSMIC DARK)
-   ========================================================================== */
 :root {
-  --bg: #030005;
-  --s1: rgba(20, 15, 35, 0.7);
-  --s2: rgba(35, 25, 55, 0.6);
-  --s3: rgba(50, 35, 80, 0.5);
-  --br: rgba(168, 85, 247, 0.15);
-  --br2: rgba(168, 85, 247, 0.35);
-  
-  --tx: #f3e8ff;
-  --tx2: #c4a3ff;
-  --tx3: #7e5c9c;
-  
-  --accent: #a855f7; 
+  --bg: #05030a;
+  --glass-bg: rgba(20, 15, 35, 0.6);
+  --glass-border: rgba(168, 85, 247, 0.2);
+  --accent: #a855f7;
+  --accent-glow: rgba(168, 85, 247, 0.5);
   --accent-2: #d8b4fe;
-  --accent-soft: rgba(168, 85, 247, 0.15);
-  --grad: linear-gradient(135deg, #7e22ce, #a855f7, #d8b4fe);
-  
-  --ok: #10b981;
-  --err: #f43f5e;
+  --tx: #f3e8ff;
+  --tx2: #a78bfa;
+  --tx3: #6b21a8;
+  --danger: #f43f5e;
+  --font: 'Outfit', sans-serif;
+  --font-head: 'Space Grotesk', sans-serif;
   --ease: cubic-bezier(0.2, 0, 0, 1);
-  --spring: cubic-bezier(0.3, 1.2, 0.5, 1);
-  
-  --nav-h: 64px;
-  --mp-h: 60px;
-  --font: 'Inter', sans-serif;
-  --font-head: 'Sora', sans-serif;
 }
-
-[data-theme="midnight"] { --accent:#60a5fa; --accent-2:#93c5fd; --accent-soft:rgba(96,165,250,.15); --grad:linear-gradient(135deg,#2563eb,#60a5fa,#93c5fd); }
-[data-theme="ocean"] { --accent:#22d3ee; --accent-2:#67e8f9; --accent-soft:rgba(34,211,238,.15); --grad:linear-gradient(135deg,#0891b2,#22d3ee,#67e8f9); }
-[data-theme="gold"] { --accent:#fbbf24; --accent-2:#fde68a; --accent-soft:rgba(251,191,36,.15); --grad:linear-gradient(135deg,#d97706,#fbbf24,#fde68a); }
-[data-theme="rose"] { --accent:#f472b6; --accent-2:#fbcfe8; --accent-soft:rgba(244,114,182,.15); --grad:linear-gradient(135deg,#db2777,#f472b6,#fbcfe8); }
-[data-theme="mono"] { --accent:#e5e7eb; --accent-2:#f9fafb; --accent-soft:rgba(229,231,235,.12); --grad:linear-gradient(135deg,#6b7280,#e5e7eb,#f9fafb); }
-
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--tx); overflow: hidden; font-size: 14px; -webkit-font-smoothing: antialiased; }
-button, input, textarea { font-family: inherit; border: none; background: none; color: inherit; outline: none; cursor: pointer; }
+html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--tx); overflow: hidden; font-size: 14px; }
+button, input { font-family: inherit; border: none; background: none; color: inherit; outline: none; cursor: pointer; }
 img, svg { display: block; max-width: 100%; }
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::selection { background: var(--accent); color: #fff; }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
 
-/* ==========================================================================
-   2. ANIMATIONS & BACKGROUND
-   ========================================================================== */
+#bgCanvas { position: fixed; inset: 0; z-index: 0; opacity: 0.4; pointer-events: none; }
+.glow-orb { position: fixed; border-radius: 50%; filter: blur(100px); z-index: 0; opacity: 0.3; pointer-events: none; }
+.orb-1 { width: 500px; height: 500px; background: #4c1d95; top: -100px; left: -100px; animation: float 10s infinite alternate; }
+.orb-2 { width: 400px; height: 400px; background: #7e22ce; bottom: -100px; right: -100px; animation: float 12s infinite alternate-reverse; }
+@keyframes float { 0% { transform: translate(0,0); } 100% { transform: translate(50px, 50px); } }
+
+.glass { background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+
+.app-layout { display: grid; grid-template-columns: 260px 1fr 340px; height: 100vh; position: relative; z-index: 1; padding: 12px; gap: 12px; }
+.sidebar { border-radius: 20px; display: flex; flex-direction: column; padding: 20px; }
+.main-content { border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.right-panel { border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; }
+
+.logo { display: flex; align-items: center; gap: 12px; font-family: var(--font-head); font-size: 24px; font-weight: 700; letter-spacing: 2px; margin-bottom: 30px; cursor: pointer; }
+.logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #000; }
+.logo-icon svg { width: 20px; height: 20px; }
+.nav-group-title { font-size: 11px; font-weight: 700; color: var(--tx2); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 10px 10px; }
+.nav-item { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 12px; font-weight: 600; color: var(--tx2); transition: all 0.2s var(--ease); width: 100%; text-align: left; }
+.nav-item:hover { background: rgba(255,255,255,0.05); color: var(--tx); }
+.nav-item.active { background: var(--accent-glow); color: #fff; box-shadow: 0 0 15px var(--accent-glow); }
+.nav-item svg { width: 20px; height: 20px; fill: currentColor; }
+
+.top-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; z-index: 10; }
+.search-container { position: relative; flex: 1; max-width: 500px; }
+.search-box { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 48px; border-radius: 24px; transition: all 0.3s; }
+.search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+.search-box svg { width: 20px; height: 20px; fill: var(--tx2); }
+.search-box input { flex: 1; font-size: 15px; font-weight: 500; color: var(--tx); background: transparent; }
+.search-btn { color: var(--accent); font-weight: 700; padding: 8px 12px; border-radius: 12px; transition: 0.2s; }
+.search-btn:hover { background: rgba(168,85,247,0.1); }
+
+.search-suggestions { position: absolute; top: 56px; left: 0; right: 0; border-radius: 16px; padding: 8px; display: none; z-index: 100; max-height: 300px; overflow-y: auto; }
+.search-suggestions.active { display: block; animation: fadeIn 0.2s; }
+.sug-item { padding: 12px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+.sug-item:hover { background: rgba(168,85,247,0.15); color: #fff; }
+.sug-item svg { width: 16px; height: 16px; fill: var(--tx3); }
+
+.view-container { flex: 1; overflow-y: auto; padding: 0 24px 120px; position: relative; }
+.view { display: none; animation: slideUp 0.4s var(--ease); }
+.view.active { display: block; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.hero-section { display: flex; justify-content: space-between; align-items: center; border-radius: 24px; padding: 40px; margin-bottom: 30px; position: relative; overflow: hidden; }
+.hero-text { z-index: 2; max-width: 60%; }
+.tag { display: inline-block; padding: 6px 12px; border-radius: 20px; background: rgba(168,85,247,0.2); color: var(--accent-2); font-size: 11px; font-weight: 800; letter-spacing: 2px; margin-bottom: 16px; }
+.hero-text h1 { font-family: var(--font-head); font-size: 42px; font-weight: 700; line-height: 1.1; margin-bottom: 16px; background: linear-gradient(to right, #fff, var(--tx2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-text p { color: var(--tx2); font-size: 16px; margin-bottom: 24px; line-height: 1.5; }
+.btn-primary { background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 15px; transition: all 0.2s; box-shadow: 0 4px 15px var(--accent-glow); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+
+.hero-visual { width: 200px; height: 200px; position: relative; }
+.vinyl-hero { width: 100%; height: 100%; border-radius: 50%; background: repeating-radial-gradient(circle, #111 0%, #111 2%, #222 3%, #111 4%); box-shadow: 0 0 30px rgba(0,0,0,0.8); animation: spin 10s linear infinite; position: relative; }
+.vinyl-hero::after { content: ''; position: absolute; inset: 30%; border-radius: 50%; background: var(--accent); border: 4px solid #000; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
-@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-@keyframes eq1 { 0%,100%{height:20%} 50%{height:100%} }
-@keyframes eq2 { 0%,100%{height:70%} 50%{height:20%} }
-@keyframes eq3 { 0%,100%{height:40%} 50%{height:90%} }
-@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes toastOut { to { opacity: 0; transform: translate(-50%, 20px); } }
-@keyframes floatA { 0%,100%{transform:translate(0,0)} 100%{transform:translate(60px,40px)} }
-@keyframes floatB { 0%,100%{transform:translate(0,0)} 100%{transform:translate(-60px,-40px)} }
 
-.bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 50% 0%, #1a0a2e 0%, #030005 60%, #000 100%); overflow: hidden; }
-.bg-orb { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.3; }
-.bg-orb.o1 { width: 600px; height: 600px; top: -200px; left: -100px; background: radial-gradient(circle, #7e22ce, transparent 70%); animation: floatA 20s infinite alternate; }
-.bg-orb.o2 { width: 500px; height: 500px; bottom: -200px; right: -100px; background: radial-gradient(circle, #4c1d95, transparent 70%); animation: floatB 25s infinite alternate; }
-
-/* ==========================================================================
-   3. DESKTOP & MOBILE LAYOUT
-   ========================================================================== */
-.app { display: flex; height: 100vh; overflow: hidden; position: relative; z-index: 1; }
-.main-content { flex: 1; overflow-y: auto; position: relative; display: flex; flex-direction: column; padding-bottom: calc(var(--nav-h) + var(--mp-h) + 20px); }
-.view { display: none; animation: fadeUp 0.3s var(--ease); padding: 0 16px; }
-.view.on { display: block; }
-
-/* Sidebar (Desktop Only) */
-.sidebar-desktop { display: none; width: 240px; background: rgba(10, 5, 20, 0.6); border-right: 1px solid var(--br); flex-direction: column; padding: 20px 12px; z-index: 50; backdrop-filter: blur(20px); }
-.sb-logo { display: flex; align-items: center; gap: 10px; padding: 0 12px 24px; cursor: pointer; }
-.sb-logo-ic { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; border: 1px solid var(--br2); }
-.sb-logo-ic svg { width: 24px; height: 24px; fill: var(--accent); }
-.sb-logo-t { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #fff; }
-.sb-cat { font-size: 11px; font-weight: 800; color: var(--tx3); text-transform: uppercase; letter-spacing: 1px; padding: 16px 12px 8px; }
-.sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--tx2); border-radius: 8px; cursor: pointer; transition: 0.2s; }
-.sb-item:hover { background: var(--s2); color: var(--tx); }
-.sb-item.on { background: rgba(168, 85, 247, 0.15); color: var(--accent); }
-.sb-item.on svg { fill: var(--accent); }
-.sb-item svg { width: 20px; height: 20px; fill: currentColor; }
-
-/* Right Panel (Desktop Only) */
-.right-panel-desktop { display: none; width: 320px; background: rgba(10, 5, 20, 0.6); border-left: 1px solid var(--br); flex-direction: column; z-index: 50; backdrop-filter: blur(20px); }
-.rp-tabs { display: flex; border-bottom: 1px solid var(--br); }
-.rp-tab { flex: 1; padding: 16px 8px; font-size: 13px; font-weight: 700; color: var(--tx3); text-align: center; border-bottom: 2px solid transparent; transition: 0.2s; }
-.rp-tab.on { color: var(--tx); border-bottom-color: var(--accent); }
-.rp-body { flex: 1; overflow-y: auto; padding: 20px; }
-
-/* ==========================================================================
-   4. TOP BAR & SEARCH
-   ========================================================================== */
-.top-bar { padding: 16px 16px 12px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; background: linear-gradient(to bottom, rgba(3,0,5,1) 60%, rgba(3,0,5,0)); backdrop-filter: blur(10px); }
-.user-profile { display: flex; align-items: center; gap: 10px; }
-.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: #333; border: 1px solid var(--br2); overflow: hidden; }
-.get-pro { color: var(--accent); font-weight: 800; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
-.top-actions { display: flex; gap: 16px; color: var(--tx); }
-.top-actions button { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
-
-.search-bar { padding: 0 16px 16px; position: sticky; top: 60px; z-index: 39; background: var(--bg); }
-.search-input-wrap { display: flex; align-items: center; background: var(--s2); border-radius: 12px; padding: 0 14px; height: 46px; gap: 10px; border: 1px solid var(--br); transition: all 0.2s; }
-.search-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--s3); }
-.search-input-wrap input { flex: 1; font-size: 15px; font-weight: 500; color: var(--tx); }
-.search-input-wrap svg { width: 18px; height: 18px; fill: var(--tx3); }
-.paste-btn { font-size: 13px; font-weight: 700; color: var(--accent); padding: 4px 8px; }
-
-/* ==========================================================================
-   5. HOME SECTIONS & CARDS
-   ========================================================================== */
-.section { margin-bottom: 24px; animation: fadeIn 0.5s ease; }
-.sec-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
-.sec-title { font-family: var(--font-head); font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #fff; }
-.sec-btn { font-size: 12px; font-weight: 700; color: var(--tx2); background: var(--s2); padding: 6px 12px; border-radius: 100px; border: 1px solid var(--br); }
-
-.hero-banner { display: flex; align-items: center; gap: 16px; background: linear-gradient(90deg, var(--accent-soft), rgba(168,85,247,0.02)); padding: 16px; border-radius: 16px; border: 1px solid var(--br); position: relative; cursor: pointer; overflow: hidden; }
-.hero-banner::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--grad); box-shadow: 0 0 15px var(--accent); }
-.hero-icon { width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; border: 1px solid var(--br); }
-.hero-icon svg { width: 22px; height: 22px; fill: var(--accent); }
-.hero-text { flex: 1; }
-.hero-title { font-size: 16px; font-weight: 800; margin-bottom: 4px; color: #fff; }
-.hero-sub { font-size: 12px; color: var(--tx2); }
-.hero-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--grad); color: #000; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px var(--accent-soft); }
-.hero-btn svg { width: 20px; height: 20px; fill: currentColor; }
-
-.h-scroll { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 16px 10px; margin: 0 -16px; scrollbar-width: none; }
-.h-card { flex: 0 0 140px; scroll-snap-align: start; cursor: pointer; transition: transform 0.2s; }
-.h-card:active { transform: scale(0.95); }
-.h-card-img { width: 140px; height: 140px; border-radius: 12px; margin-bottom: 10px; background: var(--s3); box-shadow: 0 6px 15px rgba(0,0,0,0.6); border: 1px solid var(--br); }
-.h-card-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--tx); }
-.h-card-sub { font-size: 11px; color: var(--tx3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* ==========================================================================
-   6. TRACK LISTS
-   ========================================================================== */
-.track-list { display: flex; flex-direction: column; gap: 4px; }
-.track-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; cursor: pointer; transition: background 0.2s; border: 1px solid transparent; }
-.track-item:active, .track-item:hover { background: var(--s2); border-color: var(--br); }
-.track-item.playing { background: linear-gradient(90deg, var(--accent-soft), transparent); border-color: var(--br2); }
-.track-item.playing .track-title { color: var(--accent-2); font-weight: 800; }
-.track-img { width: 56px; height: 56px; border-radius: 8px; background: var(--s3); flex-shrink: 0; border: 1px solid var(--br); }
+.section-header h2 { font-family: var(--font-head); font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #fff; }
+.track-list { display: flex; flex-direction: column; gap: 8px; }
+.track-item { display: flex; align-items: center; gap: 16px; padding: 10px; border-radius: 16px; background: rgba(255,255,255,0.02); transition: all 0.2s; cursor: pointer; border: 1px solid transparent; }
+.track-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); transform: translateX(4px); }
+.track-item.playing { background: linear-gradient(90deg, rgba(168,85,247,0.15), transparent); border-color: var(--glass-border); }
+.track-item.playing .track-title { color: var(--accent-2); }
+.track-img { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 .track-info { flex: 1; min-width: 0; }
-.track-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; color: #fff; }
+.track-title { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
 .track-artist { font-size: 13px; color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.track-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--tx3); margin-top: 4px; }
-.track-more { padding: 8px; color: var(--tx3); }
-.track-more svg { width: 20px; height: 20px; fill: currentColor; transition: fill 0.2s; }
+.track-duration { font-size: 13px; color: var(--tx3); font-weight: 500; }
 
-/* ==========================================================================
-   7. MINI PLAYER
-   ========================================================================== */
-.mini-player { position: fixed; bottom: calc(var(--nav-h) + 12px); left: 12px; right: 12px; max-width: 600px; margin: 0 auto; height: var(--mp-h); background: rgba(20,15,35,0.95); border: 1px solid var(--br2); border-radius: 100px; display: flex; align-items: center; padding: 0 16px 0 6px; gap: 12px; z-index: 90; box-shadow: 0 10px 30px rgba(0,0,0,0.8); transform: translateY(150%); opacity: 0; transition: all 0.4s var(--spring); cursor: pointer; backdrop-filter: blur(20px); }
-.mini-player.on { transform: translateY(0); opacity: 1; }
-.mp-play { width: 48px; height: 48px; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center; background: #000; flex-shrink: 0; border: 1px solid var(--br); }
-.mp-play svg { width: 20px; height: 20px; fill: #fff; z-index: 2; }
-.mp-prog { position: absolute; inset: 0; border-radius: 50%; transform: rotate(-90deg); }
-.mp-prog circle { fill: none; stroke-width: 3; }
-.mp-prog .bg { stroke: rgba(255,255,255,0.1); }
-.mp-prog .fg { stroke: var(--accent); stroke-dasharray: 138.2; stroke-dashoffset: 138.2; transition: stroke-dashoffset 0.2s linear; stroke-linecap: round; }
+.rp-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 10px; }
+.rp-tab { flex: 1; padding: 10px; border-radius: 8px; font-weight: 600; color: var(--tx2); transition: 0.2s; }
+.rp-tab.active { background: rgba(255,255,255,0.1); color: #fff; }
+.rp-content { display: none; flex: 1; flex-direction: column; padding: 20px; overflow-y: auto; }
+.rp-content.active { display: flex; animation: fadeIn 0.3s; }
+
+.record-container { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+.vinyl-disc { width: 85%; aspect-ratio: 1; border-radius: 50%; background: #0a0a0a; position: relative; box-shadow: 0 0 40px rgba(0,0,0,0.8), inset 0 0 20px rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; transition: transform 0.5s; }
+.vinyl-grooves { position: absolute; inset: 5%; border-radius: 50%; background: repeating-radial-gradient(circle, transparent, transparent 4px, rgba(255,255,255,0.03) 5px, transparent 6px); }
+.vinyl-label { width: 40%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; z-index: 2; border: 2px solid rgba(255,255,255,0.1); position: relative; }
+.vinyl-label img { width: 100%; height: 100%; object-fit: cover; }
+.vinyl-label::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.5) 100%); pointer-events: none; }
+.vinyl-disc.spinning { animation: spin 4s linear infinite; }
+.rp-info { text-align: center; margin-bottom: 20px; }
+.rp-info h3 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.rp-info p { font-size: 14px; color: var(--tx2); }
+.visualizer-container { flex: 1; width: 100%; min-height: 100px; position: relative; }
+#vizCanvas { width: 100%; height: 100%; display: block; }
+
+.lyrics-scroll { flex: 1; overflow-y: auto; padding: 10px 0; text-align: center; }
+.lyrics-line { font-size: 16px; font-weight: 600; color: var(--tx3); line-height: 1.8; padding: 8px 0; transition: all 0.3s; }
+.lyrics-line.active { color: var(--accent); font-size: 18px; transform: scale(1.05); text-shadow: 0 0 10px var(--accent-glow); }
+
+.mini-player { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: calc(100% - 40px); max-width: 600px; height: 72px; border-radius: 20px; display: none; align-items: center; padding: 0 16px; gap: 16px; z-index: 50; cursor: pointer; }
+.mini-player.on { display: flex; animation: slideUp 0.3s var(--ease); }
+.mp-art { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+.mp-art img { width: 100%; height: 100%; object-fit: cover; }
 .mp-info { flex: 1; min-width: 0; }
 .mp-title { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-artist { font-size: 12px; color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.mp-acts { display: flex; gap: 4px; align-items: center; }
-.mp-acts button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--tx2); }
-.mp-acts button svg { width: 22px; height: 22px; fill: currentColor; }
-.mp-acts button.on { color: var(--accent); }
+.mp-artist { font-size: 12px; color: var(--tx2); margin-top: 2px; }
+.mp-controls { display: flex; gap: 8px; }
+.mp-controls button { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; }
+.mp-controls svg { width: 18px; height: 18px; fill: #fff; }
+.mp-progress-bar { position: absolute; bottom: 0; left: 16px; right: 16px; height: 2px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.mp-progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s linear; }
 
-/* ==========================================================================
-   8. BOTTOM NAVIGATION
-   ========================================================================== */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-h); background: rgba(10,5,20,0.95); display: flex; align-items: center; justify-content: space-around; z-index: 100; border-top: 1px solid var(--br); padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(20px); }
-.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--tx3); font-size: 10px; font-weight: 600; flex: 1; padding: 10px 0; }
-.nav-item svg { width: 24px; height: 24px; fill: currentColor; transition: transform 0.2s; }
-.nav-item.on { color: #fff; }
-.nav-item.on svg { fill: var(--accent); transform: translateY(-2px); }
-
-/* ==========================================================================
-   9. FULL PLAYER
-   ========================================================================== */
-.full-player { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s var(--ease); visibility: hidden; overflow: hidden; }
+.full-player { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.5s var(--ease); visibility: hidden; overflow: hidden; border-radius: 0; }
 .full-player.on { transform: translateY(0); visibility: visible; }
-.fp-bg { position: absolute; inset: -20px; background-size: cover; background-position: center; filter: blur(50px) brightness(0.3); z-index: -1; transition: background-image 0.5s; }
+.fp-bg { position: absolute; inset: -50px; background-size: cover; background-position: center; filter: blur(60px) brightness(0.2); z-index: -1; transition: background-image 0.5s; }
+.fp-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; font-weight: 600; color: var(--tx2); }
+.fp-header button { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; }
+.fp-header svg { width: 24px; height: 24px; fill: #fff; }
+.fp-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; max-width: 500px; margin: 0 auto; width: 100%; }
+.fp-art-wrap { width: 100%; max-width: 300px; aspect-ratio: 1; margin-bottom: 30px; position: relative; }
+.fp-vinyl { width: 100% !important; height: 100% !important; }
+.fp-info { text-align: center; width: 100%; margin-bottom: 30px; position: relative; }
+.fp-info h2 { font-family: var(--font-head); font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-info p { font-size: 16px; color: var(--tx2); }
+.btn-fav { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; }
+.btn-fav svg { width: 20px; height: 20px; fill: var(--tx2); transition: 0.2s; }
+.btn-fav.active svg { fill: var(--accent); filter: drop-shadow(0 0 8px var(--accent-glow)); }
+.fp-seekbar { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 30px; font-size: 12px; font-weight: 600; color: var(--tx3); }
+.fp-seekbar input[type="range"] { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; outline: none; }
+.fp-seekbar input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); cursor: pointer; }
+.fp-controls { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 350px; }
+.fp-controls button { color: var(--tx2); display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.fp-controls button svg { width: 28px; height: 28px; fill: currentColor; }
+.fp-controls button:hover { color: #fff; }
+.fp-controls button.active { color: var(--accent); }
+.btn-play-main { width: 72px; height: 72px; border-radius: 50%; background: #fff; color: #000 !important; box-shadow: 0 10px 30px rgba(255,255,255,0.2); transition: transform 0.2s !important; }
+.btn-play-main:hover { transform: scale(1.05); }
+.btn-play-main svg { width: 32px; height: 32px; }
 
-.fp-header { padding: 20px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 10; }
-.fp-header-left { flex: 1; min-width: 0; padding-right: 20px; }
-.fp-title { font-family: var(--font-head); font-size: 20px; font-weight: 800; line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #fff; }
-.fp-artist { font-size: 15px; color: #ccc; font-weight: 500; }
-.fp-header-right { display: flex; flex-direction: column; gap: 12px; }
-.fp-icon-btn { width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: #fff; border: 1px solid var(--br); }
-.fp-icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 300; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 20px; }
+.modal-overlay.on { opacity: 1; pointer-events: auto; }
+.modal-content { width: 100%; max-width: 450px; border-radius: 24px; padding: 24px; transform: scale(0.95); transition: transform 0.3s var(--ease); }
+.modal-overlay.on .modal-content { transform: scale(1); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-header h3 { font-size: 20px; font-weight: 700; color: #fff; }
+.modal-header button { color: var(--tx2); font-size: 18px; }
 
-.fp-center { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 20px; z-index: 10; }
-.wave-container { position: relative; width: 100%; height: 120px; cursor: pointer; display: flex; align-items: center; }
-#waveCanvas { width: 100%; height: 100%; display: block; }
-.wave-time-badge { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 700; color: #fff; pointer-events: none; border: 1px solid var(--br2); }
+.eq-controls { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+.eq-row { display: flex; align-items: center; gap: 12px; }
+.eq-row label { width: 60px; font-size: 13px; font-weight: 600; color: var(--tx2); }
+.eq-row input[type="range"] { flex: 1; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+.eq-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.eq-row span { width: 40px; text-align: right; font-size: 12px; font-weight: 700; color: var(--accent); }
+.eq-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.eq-presets button { padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--tx); font-weight: 600; font-size: 13px; transition: 0.2s; }
+.eq-presets button:hover { background: rgba(255,255,255,0.1); }
 
-.fp-controls { padding: 20px 20px 30px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
-.fp-ctrl-row { display: flex; justify-content: center; align-items: center; gap: 24px; }
-.fp-btn { color: #fff; display: flex; align-items: center; justify-content: center; }
-.fp-btn svg { width: 32px; height: 32px; fill: currentColor; }
-.fp-btn.play-main { width: 72px; height: 72px; background: var(--grad); color: #000; border-radius: 50%; box-shadow: 0 0 20px var(--accent-soft); }
-.fp-btn.play-main svg { width: 32px; height: 32px; }
-.fp-btn.on { color: var(--accent); }
+.input-field { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 14px 16px; border-radius: 12px; color: #fff; font-size: 14px; transition: 0.2s; margin-bottom: 12px; }
+.input-field:focus { border-color: var(--accent); outline: none; }
+.w-full { width: 100%; display: block; }
+.divider { text-align: center; margin: 16px 0; font-size: 12px; color: var(--tx3); font-weight: 700; text-transform: uppercase; }
+.btn-danger { background: rgba(244, 63, 94, 0.2); color: var(--danger); padding: 12px; border-radius: 12px; font-weight: 700; }
 
-.fp-bottom-actions { display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid var(--br); }
-.fp-action-btn { display: flex; align-items: center; gap: 6px; color: #fff; font-size: 14px; font-weight: 600; }
-.fp-action-btn svg { width: 24px; height: 24px; fill: currentColor; }
-.fp-action-btn.on { color: var(--accent); }
+.party-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: 600; }
+.chat-container { height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.chat-msg { font-size: 13px; line-height: 1.4; }
+.chat-user { font-weight: 700; color: var(--accent-2); }
 
-/* ==========================================================================
-   10. BOTTOM SHEETS & MODALS
-   ========================================================================== */
-.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 300; opacity: 0; pointer-events: none; transition: opacity 0.3s; display: flex; align-items: flex-end; justify-content: center; }
-.sheet-overlay.on { opacity: 1; pointer-events: auto; }
-.bottom-sheet { width: 100%; max-width: 600px; background: #121018; border-radius: 24px 24px 0 0; padding: 12px 20px calc(20px + env(safe-area-inset-bottom, 20px)); transform: translateY(100%); transition: transform 0.35s var(--spring); border-top: 1px solid var(--br2); max-height: 85vh; overflow-y: auto; }
-.sheet-overlay.on .bottom-sheet { transform: translateY(0); }
-.sheet-handle { width: 36px; height: 4px; background: var(--s3); border-radius: 2px; margin: 0 auto 16px; }
-.sheet-title { font-size: 18px; font-weight: 800; margin-bottom: 16px; text-align: center; color: #fff; }
+#toastBox { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
+.toast { background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 24px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 15px var(--accent-glow); animation: toastIn 0.3s var(--ease); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-20px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.feat-btn { background: var(--s2); border-radius: 14px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: #fff; border: 1px solid transparent; transition: 0.2s; }
-.feat-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.feat-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: var(--glass-bg); backdrop-filter: blur(24px); border-top: 1px solid var(--glass-border); z-index: 100; padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); }
+.mobile-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--tx3); font-size: 10px; font-weight: 600; transition: 0.2s; }
+.mobile-nav button.active { color: var(--accent); }
+.mobile-nav svg { width: 22px; height: 22px; fill: currentColor; }
 
-.sub-menu { display: none; animation: fadeIn 0.2s; }
-.sub-menu.on { display: block; }
-.menu-row { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--br); font-size: 15px; font-weight: 600; align-items: center; color: #fff; }
-.eq-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.eq-lbl { width: 50px; font-size: 12px; font-weight: 700; color: var(--tx2); }
-.eq-slider { flex: 1; -webkit-appearance: none; height: 4px; background: var(--s3); border-radius: 2px; }
-.eq-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.eq-val { width: 40px; font-size: 12px; font-weight: 700; color: var(--accent); text-align: right; }
-
-.lyrics-content { text-align: center; font-size: 16px; line-height: 1.8; color: var(--tx2); padding: 10px 0; white-space: pre-wrap; min-height: 200px; }
-.lyrics-line { padding: 4px 0; transition: color 0.3s; }
-.lyrics-line.active { color: var(--accent); font-weight: 800; font-size: 17px; text-shadow: 0 0 10px var(--accent-soft); }
-
-.mbg { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: 0.3s; backdrop-filter: blur(10px); }
-.mbg.on { opacity: 1; pointer-events: auto; }
-.modal { background: #121018; border: 1px solid var(--accent); border-radius: 24px; max-width: 450px; width: 100%; padding: 24px; transform: scale(0.95); transition: 0.3s var(--spring); position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
-.mbg.on .modal { transform: scale(1); }
-.m-h { font-family: var(--font-head); font-size: 22px; font-weight: 800; margin-bottom: 16px; text-align: center; color: var(--accent-2); }
-.m-x { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: var(--s3); display: flex; align-items: center; justify-content: center; }
-
-/* ==========================================================================
-   11. TOASTS & UTILS
-   ========================================================================== */
-.toasts { position: fixed; top: 20px; left: 50%; transform: translate(-50%, 0); z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; width: 90%; max-width: 350px; }
-.toast { background: rgba(30,20,50,0.98); border: 1px solid var(--accent); color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.6); animation: toastIn 0.3s var(--spring); text-align: center; }
-.toast.ok { border-left: 4px solid var(--ok); }
-.toast.err { border-left: 4px solid var(--err); }
-
-.search-suggest { position: fixed; background: rgba(20,15,35,0.98); backdrop-filter: blur(30px); border: 1px solid var(--br2); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 99999; display: none; max-height: 50vh; overflow-y: auto; }
-.sug-item { padding: 12px 16px; font-size: 13.5px; color: var(--tx2); cursor: pointer; border-bottom: 1px solid var(--br); transition: all 0.15s; }
-.sug-item:last-child { border-bottom: none; }
-.sug-item:hover { background: var(--accent-soft); color: #fff; }
-
-/* ==========================================================================
-   12. DESKTOP OVERRIDES
-   ========================================================================== */
-@media (min-width: 1024px) {
-  .sidebar-desktop { display: flex; }
-  .right-panel-desktop { display: flex; }
-  .bottom-nav { display: none; }
-  .mini-player { left: auto; right: 340px; bottom: 20px; max-width: none; width: calc(100% - 600px); border-radius: 12px; }
-  .main-content { padding-bottom: 100px; }
-  .app { display: grid; grid-template-columns: 240px 1fr 320px; }
-  .view { padding: 0 24px; }
-  .top-bar { padding: 24px 24px 16px; }
-  .search-bar { padding: 0 24px 24px; top: 80px; }
-  .full-player { padding-left: 240px; padding-right: 320px; }
+@media (max-width: 1024px) {
+  .app-layout { grid-template-columns: 80px 1fr; }
+  .sidebar .nav-item span, .nav-group-title, .logo span { display: none; }
+  .nav-item { justify-content: center; padding: 14px; }
+  .right-panel { display: none; }
+  .hero-section { padding: 24px; }
+  .hero-text { max-width: 100%; }
+  .hero-text h1 { font-size: 32px; }
+}
+@media (max-width: 768px) {
+  .app-layout { grid-template-columns: 1fr; padding: 0; }
+  .sidebar { display: none; }
+  .top-header { padding: 16px; }
+  .view-container { padding: 0 16px 150px; }
+  .hero-section { padding: 20px; flex-direction: column; text-align: center; }
+  .hero-visual { display: none; }
+  .hero-text h1 { font-size: 26px; }
+  .fp-art-wrap { max-width: 240px; }
+  .mobile-nav { display: flex; }
+  .mini-player { bottom: 80px; }
 }
 </style>
 </head>
-<body>
+   <body>
+<canvas id="bgCanvas"></canvas>
+<div class="glow-orb orb-1"></div>
+<div class="glow-orb orb-2"></div>
 
-<!-- Loading Screen -->
-<div class="loading-screen" id="loadingScreen" style="position:fixed;inset:0;z-index:9999;background:#030005;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .8s;">
-  <div class="loading-logo" style="width:140px;height:140px;margin-bottom:24px;filter:drop-shadow(0 0 30px rgba(168,85,247,.7));">
-    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <radialGradient id="lsBg" cx="50%" cy="42%" r="65%">
-          <stop offset="0%" stop-color="#3a1060"/><stop offset="55%" stop-color="#0a0520"/><stop offset="100%" stop-color="#02010a"/>
-        </radialGradient>
-        <filter id="lsGlow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <circle cx="256" cy="256" r="256" fill="url(#lsBg)"/>
-      <circle cx="256" cy="216" r="148" fill="none" stroke="#a855f7" stroke-width="10" filter="url(#lsGlow)" opacity="0.85"/>
-      <g fill="#000">
-        <path d="M 158 512 L 168 372 C 173 318, 200 288, 230 276 L 256 296 L 282 276 C 312 288, 339 318, 344 372 L 354 512 Z"/>
-        <rect x="234" y="236" width="44" height="66"/><ellipse cx="256" cy="196" rx="66" ry="74"/>
-        <path d="M 192 160 L 210 100 L 228 160 Z"/><path d="M 234 150 L 256 60 L 278 150 Z"/><path d="M 284 160 L 302 100 L 320 160 Z"/>
-      </g>
-      <g filter="url(#lsGlow)"><path d="M 256 120 L 270 184 L 340 196 L 270 208 L 256 272 L 242 208 L 172 196 L 242 184 Z" fill="#fff"/></g>
-    </svg>
-  </div>
-  <div style="font-family:'Sora',sans-serif;font-size:36px;font-weight:800;letter-spacing:6px;color:#fff;margin-bottom:8px;">NOVA</div>
-  <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:4px;text-transform:uppercase;margin-bottom:30px;">Cosmic Sound</div>
-  <div style="width:200px;height:3px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;position:relative;">
-    <div style="position:absolute;inset:0;width:30%;background:var(--grad);border-radius:3px;animation:pulse 1.5s infinite;"></div>
-  </div>
-</div>
-
-<!-- Background Effects -->
-<div class="bg"><div class="bg-orb o1"></div><div class="bg-orb o2"></div></div>
-
-<div class="app">
-  
-  <!-- DESKTOP SIDEBAR -->
-  <aside class="sidebar-desktop">
-    <div class="sb-logo" onclick="navTo('home')">
-      <div class="sb-logo-ic">
-        <svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
-      </div>
-      <span class="sb-logo-t">NOVA</span>
+<div class="app-layout">
+  <aside class="sidebar glass">
+    <div class="logo" onclick="navTo('home')">
+      <div class="logo-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div>
+      <span>NOVA</span>
     </div>
-    <div class="sb-cat">Khám phá</div>
-    <button class="sb-item on" data-nav="home" onclick="navTo('home')"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Trang chủ</span></button>
-    <button class="sb-item" data-nav="search" onclick="navTo('search')"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg><span>Tìm kiếm</span></button>
-    <div class="sb-cat">Thư viện</div>
-    <button class="sb-item" data-nav="library" onclick="navTo('library')"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg><span>Thư viện</span></button>
-    <button class="sb-item" onclick="openParty()"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg><span>Nghe chung</span></button>
-    <div style="flex:1"></div>
-    <button class="sb-item" onclick="openSettingsSheet()"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span>Cài đặt</span></button>
+    <nav class="nav-menu">
+      <div class="nav-group-title">Khám phá</div>
+      <button class="nav-item active" data-view="home" onclick="navTo('home')"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Trang chủ</span></button>
+      <button class="nav-item" data-view="search" onclick="navTo('search')"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg><span>Tìm kiếm</span></button>
+      <div class="nav-group-title">Thư viện</div>
+      <button class="nav-item" data-view="library" onclick="navTo('library')"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Bài hát yêu thích</span></button>
+      <div class="nav-group-title">Tính năng</div>
+      <button class="nav-item" onclick="openModal('partyModal')"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg><span>Nghe chung</span></button>
+    </nav>
   </aside>
 
-  <!-- MAIN CONTENT -->
   <main class="main-content">
-    
-    <header class="top-bar">
-      <div class="user-profile" onclick="navTo('home')">
-        <div class="user-avatar"><img src="https://ui-avatars.com/api/?name=Nova&background=a855f7&color=fff" alt="User"></div>
-        <span class="get-pro">GET PRO</span>
-      </div>
-      <div class="top-actions">
-        <button onclick="openSettingsSheet()"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+    <header class="top-header">
+      <div class="search-container">
+        <div class="search-box glass">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg>
+          <input type="text" id="searchInput" placeholder="Bạn muốn nghe gì hôm nay?" oninput="handleSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch(this.value)">
+          <button class="search-btn" onclick="executeSearch($('searchInput').value)">Tìm</button>
+        </div>
+        <div class="search-suggestions glass" id="suggestBox"></div>
       </div>
     </header>
 
-    <div class="search-bar">
-      <div class="search-input-wrap">
-        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg>
-        <input type="text" id="q" placeholder="Tìm bài hát, nghệ sĩ trên SoundCloud..." oninput="handleSuggest(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value.trim())">
-        <button class="paste-btn" onclick="pasteLink()">Dán</button>
-        <div id="suggestBox" style="position:absolute;top:56px;left:0;right:0;background:#1a1a2e;border-radius:12px;z-index:100;display:none;overflow:hidden;border:1px solid var(--br2);box-shadow:0 10px 30px rgba(0,0,0,.5);"></div>
-      </div>
-    </div>
-
-    <!-- VIEW: HOME -->
-    <div class="view on" id="view-home">
-      <div class="section">
-        <div class="hero-banner" onclick="playRandomNow()">
-          <div class="hero-icon"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></div>
+    <div class="view-container">
+      <section class="view active" id="view-home">
+        <div class="hero-section glass">
           <div class="hero-text">
-            <div class="hero-title">Your Likes</div>
-            <div class="hero-sub">Nghe lại bài hát yêu thích</div>
+            <span class="tag">COSMIC SOUND</span>
+            <h1>Khám phá Âm nhạc<br>Không giới hạn</h1>
+            <p>Hàng triệu bản nhạc từ SoundCloud đang chờ bạn. Trải nghiệm âm thanh đỉnh cao.</p>
+            <button class="btn-primary" onclick="playRandom()">Phát Ngẫu Nhiên</button>
           </div>
-          <button class="hero-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <div class="hero-visual"><div class="vinyl-hero"></div></div>
         </div>
-      </div>
+        <div class="section-header"><h2>Nghe gần đây</h2></div>
+        <div class="track-list" id="homeRecent"></div>
+      </section>
 
-      <div class="section">
-        <div class="sec-header">
-          <div class="sec-title">Nova Flow ✨</div>
-          <button class="sec-btn" onclick="playRandomNow()">Đổi bài</button>
-        </div>
-        <div class="h-scroll" id="home-flow"></div>
-      </div>
+      <section class="view" id="view-search">
+        <div class="section-header"><h2 id="searchTitle">Kết quả tìm kiếm</h2></div>
+        <div class="track-list" id="searchResults"></div>
+      </section>
 
-      <div class="section">
-        <div class="sec-header">
-          <div class="sec-title">Nghe gần đây</div>
-          <button class="sec-btn" onclick="navTo('library')">Xem tất cả</button>
-        </div>
-        <div class="track-list" id="home-recent"></div>
-      </div>
+      <section class="view" id="view-library">
+        <div class="section-header"><h2>Bài hát yêu thích</h2></div>
+        <div class="track-list" id="libraryList"></div>
+      </section>
     </div>
-
-    <!-- VIEW: SEARCH -->
-    <div class="view" id="view-search">
-      <div class="section">
-        <div class="sec-header"><div class="sec-title" id="searchTitle">Kết quả tìm kiếm</div></div>
-        <div class="track-list" id="search-results">
-          <div style="text-align:center;padding:40px 20px;color:var(--tx2);font-size:13px;">Nhập từ khoá để tìm nhạc</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- VIEW: LIBRARY (Favorites & History) -->
-    <div class="view" id="view-library">
-      <div class="section">
-        <div class="sec-header"><div class="sec-title">Thư viện của bạn</div></div>
-        <div style="display:flex;gap:10px;margin-bottom:16px;">
-          <button class="sec-btn on" onclick="switchLibTab('favs', this)">Yêu thích</button>
-          <button class="sec-btn" onclick="switchLibTab('history', this)">Lịch sử</button>
-        </div>
-        <div class="track-list" id="library-list"></div>
-      </div>
-    </div>
-
   </main>
 
-  <!-- DESKTOP RIGHT PANEL -->
-  <aside class="right-panel-desktop">
+  <aside class="right-panel glass">
     <div class="rp-tabs">
-      <button class="rp-tab on" onclick="setRPTab('np')">Đang phát</button>
-      <button class="rp-tab" onclick="setRPTab('queue')">Hàng đợi</button>
-      <button class="rp-tab" onclick="setRPTab('lyrics')">Lời bài hát</button>
+      <button class="rp-tab active" onclick="switchRPTab('np', this)">Đang phát</button>
+      <button class="rp-tab" onclick="switchRPTab('lyrics', this)">Lời bài hát</button>
     </div>
-    <div class="rp-body">
-      <!-- Now Playing -->
-      <div class="rp-view on" id="rp-np" style="display:flex;flex-direction:column;align-items:center;">
-        <div style="width:100%;aspect-ratio:1;border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.5);margin-bottom:16px;background:var(--s3);border:1px solid var(--br);">
-          <img id="desktop-np-art" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333'%3E%3Cpath d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z'/%3E%3C/svg%3E" style="width:100%;height:100%;object-fit:cover;">
-        </div>
-        <div style="text-align:center;margin-bottom:16px;">
-          <div id="desktop-np-title" style="font-size:16px;font-weight:800;margin-bottom:4px;color:#fff;">Chưa phát bài nào</div>
-          <div id="desktop-np-artist" style="font-size:13px;color:var(--tx2);">—</div>
+    <div class="rp-content active" id="rp-np">
+      <div class="record-container">
+        <div class="vinyl-disc" id="vinylDisc">
+          <div class="vinyl-grooves"></div>
+          <div class="vinyl-label"><img id="rpArt" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333'%3E%3Cpath d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z'/%3E%3C/svg%3E"></div>
         </div>
       </div>
-      <!-- Queue -->
-      <div class="rp-view" id="rp-queue" style="display:none;">
-        <div class="sec-header" style="margin-bottom:8px;"><div class="sec-title" style="font-size:16px;">Hàng đợi</div></div>
-        <div class="track-list" id="desktop-queue-list"></div>
+      <div class="rp-info">
+        <h3 id="rpTitle">Chưa phát bài nào</h3>
+        <p id="rpArtist">—</p>
       </div>
-      <!-- Lyrics -->
-      <div class="rp-view" id="rp-lyrics" style="display:none;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-          <span style="font-size:14px;font-weight:700;">Lời bài hát</span>
-          <button onclick="openLyricsSheet()" style="color:var(--accent);font-size:12px;font-weight:700;">Mở rộng</button>
-        </div>
-        <div id="desktop-lyrics-content" style="font-size:14px;line-height:1.8;color:var(--tx2);text-align:center;">Chưa có lời</div>
-      </div>
+      <div class="visualizer-container"><canvas id="vizCanvas"></canvas></div>
+    </div>
+    <div class="rp-content" id="rp-lyrics">
+      <div class="lyrics-scroll" id="lyricsContainer"><p style="text-align:center; color:var(--tx3);">Chưa có lời bài hát</p></div>
     </div>
   </aside>
-
 </div>
 
-<!-- BOTTOM NAV (Mobile) -->
-<nav class="bottom-nav">
-  <button class="nav-item on" data-nav="home" onclick="navTo('home')">
-    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Home</span>
-  </button>
-  <button class="nav-item" data-nav="search" onclick="navTo('search')">
-    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg><span>Search</span>
-  </button>
-  <button class="nav-item" data-nav="library" onclick="navTo('library')">
-    <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg><span>Library</span>
-  </button>
-  <button class="nav-item" onclick="openParty()">
-    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg><span>Party</span>
-  </button>
-</nav>
-
-<!-- MINI PLAYER -->
-<div class="mini-player" id="miniPlayer" onclick="toggleFullPlayer()">
-  <div class="mp-play">
-    <svg viewBox="0 0 24 24" id="mpPlayIcon"><path d="M8 5v14l11-7z"/></svg>
-    <svg class="mp-prog" viewBox="0 0 50 50">
-      <circle class="bg" cx="25" cy="25" r="22"></circle>
-      <circle class="fg" id="mpProgFg" cx="25" cy="25" r="22"></circle>
-    </svg>
-  </div>
+<div class="mini-player glass" id="miniPlayer" onclick="toggleFullPlayer()">
+  <div class="mp-art"><img id="mpArt" src=""></div>
   <div class="mp-info">
     <div class="mp-title" id="mpTitle">Chưa phát bài nào</div>
     <div class="mp-artist" id="mpArtist">—</div>
   </div>
-  <div class="mp-acts">
-    <button onclick="event.stopPropagation(); toggleFavCurrent()" id="mpFavBtn"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
-    <button onclick="event.stopPropagation(); togglePlay()"><svg viewBox="0 0 24 24" id="mpToggleBtn"><path d="M8 5v14l11-7z"/></svg></button>
+  <div class="mp-controls">
+    <button onclick="event.stopPropagation(); togglePlay()"><svg id="mpPlayIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+    <button onclick="event.stopPropagation(); playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
   </div>
+  <div class="mp-progress-bar"><div class="mp-progress-fill" id="mpProgressFill"></div></div>
 </div>
 
-<!-- FULL PLAYER -->
-<div class="full-player" id="fullPlayer">
+<div class="full-player glass" id="fullPlayer">
   <div class="fp-bg" id="fpBg"></div>
-  
   <div class="fp-header">
-    <div class="fp-header-left">
-      <div class="fp-title" id="fpTitle">Chưa phát bài nào</div>
-      <div class="fp-artist" id="fpArtist">—</div>
-    </div>
-    <div class="fp-header-right">
-      <button class="fp-icon-btn" onclick="toggleFullPlayer()"><svg viewBox="0 0 24 24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg></button>
-      <button class="fp-icon-btn" onclick="openSettingsSheet()"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
-    </div>
+    <button onclick="toggleFullPlayer()"><svg viewBox="0 0 24 24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg></button>
+    <span>Đang phát từ SoundCloud</span>
+    <button onclick="openModal('settingsModal')"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
   </div>
-
-  <div class="fp-center">
-    <div class="wave-container" id="waveContainer" onclick="seekWave(event)">
-      <canvas id="waveCanvas"></canvas>
-      <div class="wave-time-badge" id="waveTimeBadge">0:00 | 0:00</div>
-    </div>
-  </div>
-
-  <div class="fp-controls">
-    <div class="fp-ctrl-row">
-      <button class="fp-btn" onclick="playPrev()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
-      <button class="fp-btn play-main" onclick="togglePlay()" id="fpPlayBtn"><svg id="fpPlayIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-      <button class="fp-btn" onclick="playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
-    </div>
-    <div class="fp-bottom-actions">
-      <button class="fp-action-btn" onclick="toggleFavCurrent()" id="fpFavBtn"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
-      <button class="fp-action-btn" onclick="openLyricsSheet()"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg></button>
-      <button class="fp-action-btn" onclick="shareCurrent()"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg></button>
-      <button class="fp-action-btn" onclick="openSettingsSheet()"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></button>
-    </div>
-  </div>
-</div>
-
-<!-- SETTINGS BOTTOM SHEET -->
-<div class="sheet-overlay" id="settingsSheet" onclick="if(event.target===this)closeSettingsSheet()">
-  <div class="bottom-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title" id="sheetTitle">Tính năng</div>
-    
-    <div id="sheetMainMenu">
-      <div class="feature-grid">
-        <button class="feat-btn" onclick="showSubMenu('eq')"><svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg>EQ</button>
-        <button class="feat-btn" onclick="showSubMenu('speed')"><svg viewBox="0 0 24 24"><path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/></svg>Tốc độ</button>
-        <button class="feat-btn" onclick="toggle8D()" id="btn8dSheet"><svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>8D</button>
-        <button class="feat-btn" onclick="showSubMenu('sleep')"><svg viewBox="0 0 24 24"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9a8.994 8.994 0 0 0 7.03-14.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Hẹn giờ</button>
-        <button class="feat-btn" onclick="startDownload()"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>Tải MP3</button>
-        <button class="feat-btn" onclick="openLyricsSheet()"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>Lyrics</button>
-        <button class="feat-btn" onclick="startSongRadio()"><svg viewBox="0 0 24 24"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.89-2-2-2H8.3l8.26-3.34L15.88 1 3.24 6.15z"/></svg>Radio</button>
-        <button class="feat-btn" onclick="openParty()"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>Party</button>
+  <div class="fp-main">
+    <div class="fp-art-wrap">
+      <div class="vinyl-disc fp-vinyl" id="fpVinylDisc">
+        <div class="vinyl-grooves"></div>
+        <div class="vinyl-label"><img id="fpArt" src=""></div>
       </div>
     </div>
-
-    <div id="subEq" class="sub-menu">
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
-        <span style="font-weight:800;color:#fff;">Equalizer</span><button onclick="hideSubMenu()" style="color:var(--tx2);">Đóng</button>
-      </div>
-      <div class="eq-row"><span class="eq-lbl">Bass</span><input type="range" class="eq-slider" id="eqBass" min="-12" max="12" value="0"><span class="eq-val" id="eqBassVal">0dB</span></div>
-      <div class="eq-row"><span class="eq-lbl">Mid</span><input type="range" class="eq-slider" id="eqMid" min="-12" max="12" value="0"><span class="eq-val" id="eqMidVal">0dB</span></div>
-      <div class="eq-row"><span class="eq-lbl">Treble</span><input type="range" class="eq-slider" id="eqTreble" min="-12" max="12" value="0"><span class="eq-val" id="eqTrebleVal">0dB</span></div>
-      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
-        <button onclick="applyEQPreset('flat')" style="padding:8px 12px;background:var(--s3);border-radius:8px;font-size:12px;font-weight:700;color:#fff;">Flat</button>
-        <button onclick="applyEQPreset('bass')" style="padding:8px 12px;background:var(--s3);border-radius:8px;font-size:12px;font-weight:700;color:#fff;">Bass</button>
-        <button onclick="applyEQPreset('vocal')" style="padding:8px 12px;background:var(--s3);border-radius:8px;font-size:12px;font-weight:700;color:#fff;">Vocal</button>
-        <button onclick="applyEQPreset('loud')" style="padding:8px 12px;background:var(--s3);border-radius:8px;font-size:12px;font-weight:700;color:#fff;">Loud</button>
-      </div>
+    <div class="fp-info">
+      <h2 id="fpTitle">—</h2>
+      <p id="fpArtist">—</p>
+      <button class="btn-fav" id="fpFavBtn" onclick="toggleFavCurrent()"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
     </div>
-
-    <div id="subSpeed" class="sub-menu">
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
-        <span style="font-weight:800;color:#fff;">Tốc độ phát</span><button onclick="hideSubMenu()" style="color:var(--tx2);">Đóng</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button onclick="setSpeed(0.5)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">0.5x</button>
-        <button onclick="setSpeed(0.75)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">0.75x</button>
-        <button onclick="setSpeed(1.0)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;color:var(--accent);border:1px solid var(--accent);">1.0x</button>
-        <button onclick="setSpeed(1.25)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">1.25x</button>
-        <button onclick="setSpeed(1.5)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">1.5x</button>
-        <button onclick="setSpeed(2.0)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">2.0x</button>
-      </div>
+    <div class="fp-seekbar">
+      <span id="fpCurTime">0:00</span>
+      <input type="range" id="fpSeek" min="0" max="100" value="0" oninput="seekAudio(this.value)">
+      <span id="fpTotalTime">0:00</span>
     </div>
-
-    <div id="subSleep" class="sub-menu">
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
-        <span style="font-weight:800;color:#fff;">Hẹn giờ tắt</span><button onclick="hideSubMenu()" style="color:var(--tx2);">Đóng</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button onclick="setSleepTimer(15)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">15 phút</button>
-        <button onclick="setSleepTimer(30)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">30 phút</button>
-        <button onclick="setSleepTimer(60)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;">60 phút</button>
-        <button onclick="setSleepTimer(0)" class="menu-row" style="justify-content:center;background:var(--s3);border-radius:10px;color:var(--err);">Tắt</button>
-      </div>
+    <div class="fp-controls">
+      <button onclick="toggleShuffle()" id="btnShuffle"><svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
+      <button onclick="playPrev()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+      <button class="btn-play-main" onclick="togglePlay()"><svg id="fpPlayIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button onclick="playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
+      <button onclick="toggleRepeat()" id="btnRepeat"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
     </div>
   </div>
 </div>
 
-<!-- LYRICS SHEET -->
-<div class="sheet-overlay" id="lyricsSheet" onclick="if(event.target===this)closeLyricsSheet()">
-  <div class="bottom-sheet">
-    <div class="sheet-handle"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <span class="sheet-title" style="margin:0;text-align:left;">Lời bài hát</span>
+<div class="modal-overlay" id="settingsModal" onclick="closeModal(event,'settingsModal')">
+  <div class="modal-content glass">
+    <div class="modal-header"><h3>Cài đặt Âm thanh</h3><button onclick="closeModal(null,'settingsModal')">✕</button></div>
+    <div class="eq-controls">
+      <div class="eq-row"><label>Bass</label><input type="range" id="eqBass" min="-12" max="12" value="0" oninput="updateEQ('bass', this.value)"><span id="valBass">0dB</span></div>
+      <div class="eq-row"><label>Mid</label><input type="range" id="eqMid" min="-12" max="12" value="0" oninput="updateEQ('mid', this.value)"><span id="valMid">0dB</span></div>
+      <div class="eq-row"><label>Treble</label><input type="range" id="eqTreble" min="-12" max="12" value="0" oninput="updateEQ('treble', this.value)"><span id="valTreble">0dB</span></div>
+    </div>
+    <div class="eq-presets">
+      <button onclick="setEQPreset('flat')">Mặc định</button>
+      <button onclick="setEQPreset('bass')">Bass Boost</button>
+      <button onclick="setEQPreset('vocal')">Vocal</button>
+      <button onclick="setEQPreset('electronic')">Electronic</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="partyModal" onclick="closeModal(event,'partyModal')">
+  <div class="modal-content glass">
+    <div class="modal-header"><h3>🎧 Phòng Nghe Chung</h3><button onclick="closeModal(null,'partyModal')">✕</button></div>
+    <div id="partyStartView">
+      <p style="font-size:13px; color:var(--tx2); margin-bottom:16px;">Tạo phòng hoặc tham gia để cùng nghe nhạc và trò chuyện với bạn bè.</p>
+      <input type="text" id="partyName" placeholder="Tên của bạn..." class="input-field">
+      <button class="btn-primary w-full" onclick="createParty()">Tạo Phòng Mới</button>
+      <div class="divider">hoặc</div>
+      <div style="display:flex; gap:10px;">
+        <input type="text" id="partyCodeInput" placeholder="Mã phòng..." class="input-field" style="text-transform:uppercase;">
+        <button class="btn-primary" onclick="joinParty()">Vào</button>
+      </div>
+    </div>
+    <div id="partyRoomView" style="display:none;">
+      <div class="party-header">
+        <span>Mã: <strong id="roomCodeDisplay" style="color:var(--accent);"></strong></span>
+        <span id="roomMembers" style="font-size:12px;"></span>
+      </div>
+      <div class="chat-container" id="chatContainer"></div>
       <div style="display:flex;gap:8px;">
-        <button onclick="shareLyrics()" style="color:var(--accent);font-size:13px;font-weight:700;">Chụp ảnh</button>
-        <button onclick="closeLyricsSheet()" style="color:var(--tx2);font-size:13px;font-weight:700;">Đóng</button>
+        <input type="text" id="chatInput" class="input-field" placeholder="Nhập tin nhắn..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="btn-primary" onclick="sendChat()">Gửi</button>
       </div>
-    </div>
-    <div class="lyrics-content" id="lyricsBody">
-      <div style="text-align:center;padding:20px;color:var(--tx3);">Chưa có lời bài hát</div>
+      <button class="btn-danger w-full" style="margin-top:12px;" onclick="leaveParty()">Rời Phòng</button>
     </div>
   </div>
 </div>
 
-<!-- PARTY MODAL -->
-<div class="mbg" id="partyModal" onclick="if(event.target===this)closeModal('partyModal')">
-  <div class="modal">
-    <button class="m-x" onclick="closeModal('partyModal')">✕</button>
-    <h2 class="m-h">🎧 Nghe chung</h2>
-    <div id="partyBody" style="text-align:center;padding:20px;color:var(--tx2);">
-      Tính năng Party đang chờ kết nối server!
-    </div>
-  </div>
-</div>
+<nav class="mobile-nav">
+  <button class="active" onclick="navTo('home'); this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active')); this.classList.add('active')">
+    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Home</span>
+  </button>
+  <button onclick="navTo('search'); this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active')); this.classList.add('active')">
+    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg><span>Search</span>
+  </button>
+  <button onclick="navTo('library'); this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active')); this.classList.add('active')">
+    <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Library</span>
+  </button>
+  <button onclick="openModal('partyModal')">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg><span>Party</span>
+  </button>
+</nav>
 
-<!-- HIDDEN ELEMENTS FOR SHARE -->
-<div id="shareLyricsCard" style="position:fixed;left:-9999px;top:-9999px;width:400px;padding:40px;background:linear-gradient(135deg,#121218,#050508);border-radius:24px;text-align:center;color:#fff;z-index:-1;">
-  <img id="shareImg" src="" style="width:120px;height:120px;border-radius:16px;margin:0 auto 20px;object-fit:cover;">
-  <h2 id="shareTitle" style="font-family:'Sora',sans-serif;font-size:20px;font-weight:700;margin-bottom:8px;"></h2>
-  <p id="shareArtist" style="font-size:14px;color:#b3b3b3;margin-bottom:24px;"></p>
-  <div id="shareSnippet" style="font-size:18px;font-weight:700;line-height:1.6;color:#fff;margin-bottom:30px;"></div>
-  <div style="font-size:12px;font-weight:800;color:#a855f7;letter-spacing:2px;text-transform:uppercase;">NOVA MUSIC</div>
-</div>
-
-<div class="toasts" id="toasts"></div>
-<audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
-
-<!-- HẾT PHẦN 2 -->
-<script>
-// ==============================================================================
-// 1. STATE & UTILS
-// ==============================================================================
-const S = {
-  curId: null, curInfo: null, view: 'home',
-  volume: parseFloat(localStorage.getItem('nv_vol') || '0.8'),
-  favorites: JSON.parse(localStorage.getItem('nv_favs') || '[]'),
-  history: JSON.parse(localStorage.getItem('nv_hist') || '[]'),
-  queue: JSON.parse(localStorage.getItem('nv_queue') || '[]'),
-  isPlaying: false, is8D: false, libTab: 'favs'
-};
-
-const audio = document.getElementById('audio');
-audio.volume = S.volume;
-
+<audio id="audio"></audio>
+<div id="toastBox"></div>
+      <script>
 const $ = id => document.getElementById(id);
-const esc = s => { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; };
-const fmt = s => {
-  if(!s || isNaN(s)) return '0:00';
-  s = Math.floor(s);
-  const m = Math.floor((s % 3600) / 60), x = s % 60;
-  return `${m}:${String(x).padStart(2, '0')}`;
+const audio = $('audio');
+let S = {
+  curInfo: null,
+  history: JSON.parse(localStorage.getItem('nv_hist') || '[]'),
+  favorites: JSON.parse(localStorage.getItem('nv_favs') || '[]'),
+  party: { code: null, sid: null, user: '', timer: null },
+  isShuffle: false, isRepeat: false, isPlaying: false,
+  lyrics: [], curLyricIdx: -1
 };
 
-const save = () => {
-  localStorage.setItem('nv_favs', JSON.stringify(S.favorites));
-  localStorage.setItem('nv_hist', JSON.stringify(S.history));
-  localStorage.setItem('nv_queue', JSON.stringify(S.queue));
-  localStorage.setItem('nv_vol', S.volume);
-};
-
-function toast(msg, type = '') {
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
-  $('toasts').appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2500);
-}
-
-// ==============================================================================
-// 2. ĐIỀU HƯỚNG (NAVIGATION)
-// ==============================================================================
-function navTo(view) {
-  S.view = view;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
-  $(`view-${view}`).classList.add('on');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('on', n.dataset.nav === view));
-  document.querySelectorAll('.sb-item').forEach(n => n.classList.toggle('on', n.dataset.nav === view));
-  
-  if (view === 'home') renderHome();
-  if (view === 'library') renderLibrary();
-  if (view === 'search') $('q').focus();
-}
-
-function toggleFullPlayer() {
-  const fp = $('fullPlayer');
-  if (fp.classList.contains('on')) {
-    fp.classList.remove('on');
-  } else {
-    if (!S.curId) return toast('Chưa có bài hát nào', 'err');
-    fp.classList.add('on');
-    startWaveform();
-  }
-}
-
-function setRPTab(tab) {
-  document.querySelectorAll('.rp-tab').forEach(t => t.classList.remove('on'));
-  document.querySelectorAll('.rp-view').forEach(v => v.style.display = 'none');
-  $('rp-' + tab).style.display = 'block';
-  if (tab === 'lyrics') loadLyrics();
-}
-
-// ==============================================================================
-// 3. BOTTOM SHEETS
-// ==============================================================================
-function openSettingsSheet() { $('settingsSheet').classList.add('on'); hideSubMenu(); }
-function closeSettingsSheet() { $('settingsSheet').classList.remove('on'); }
-function openLyricsSheet() {
-  if (!S.curInfo) return toast('Chưa phát bài nào');
-  $('lyricsSheet').classList.add('on');
-  loadLyrics();
-}
-function closeLyricsSheet() { $('lyricsSheet').classList.remove('on'); }
-function showSubMenu(menu) {
-  $('sheetMainMenu').style.display = 'none';
-  document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('on'));
-  $(`sub${menu.charAt(0).toUpperCase() + menu.slice(1)}`).classList.add('on');
-}
-function hideSubMenu() {
-  $('sheetMainMenu').style.display = 'block';
-  document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('on'));
-}
-
-// ==============================================================================
-// 4. RENDER GIAO DIỆN
-// ==============================================================================
-function createTrackHTML(t) {
-  const isFav = S.favorites.some(f => f.id === t.id);
-  const isPlaying = S.curId === t.id;
-  return `
-    <div class="track-item ${isPlaying ? 'playing' : ''}" onclick="playTrack('${t.id}')" data-id="${t.id}">
-      <img class="track-img" src="${t.thumb || ''}" loading="lazy" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'%23333\\'><path d=\\'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z\\'/></svg>'">
-      <div class="track-info">
-        <div class="track-title">${t.title || 'Unknown'}</div>
-        <div class="track-artist">${t.channel || 'SoundCloud'}</div>
-        <div class="track-meta"><span>${fmt(t.duration)}</span></div>
-      </div>
-      <button class="track-more" onclick="event.stopPropagation(); toggleFav('${t.id}', this)">
-        <svg viewBox="0 0 24 24" style="${isFav ? 'fill:var(--accent)' : ''}"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg>
-      </button>
-    </div>
-  `;
-}
-
-function renderHome() {
-  const rEl = $('home-recent');
-  if (S.history.length === 0) {
-    rEl.innerHTML = '<div style="color:var(--tx2);text-align:center;padding:20px;">Chưa có lịch sử nghe</div>';
-  } else {
-    rEl.innerHTML = S.history.slice(0, 5).map(t => createTrackHTML(t)).join('');
-  }
-
-  // Mock Nova Flow
-  const flowEl = $('home-flow');
-  const mockData = [
-    { id: 'sc_1', title: 'Chill Vibes', thumb: 'https://picsum.photos/200/200?random=1' },
-    { id: 'sc_2', title: 'Top Hits 2024', thumb: 'https://picsum.photos/200/200?random=2' },
-    { id: 'sc_3', title: 'EDM Festival', thumb: 'https://picsum.photos/200/200?random=3' }
-  ];
-  flowEl.innerHTML = mockData.map(d => `
-    <div class="h-card" onclick="toast('Đang phát Mix')">
-      <div class="h-card-img"><img src="${d.thumb}"></div>
-      <div class="h-card-title">${d.title}</div>
-      <div class="h-card-sub">SoundCloud</div>
-    </div>
-  `).join('');
-}
-
-function switchLibTab(tab, btn) {
-  S.libTab = tab;
-  document.querySelectorAll('.sec-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  renderLibrary();
-}
-
-function renderLibrary() {
-  const el = $('library-list');
-  let data = [];
-  if (S.libTab === 'favs') data = S.favorites;
-  else if (S.libTab === 'history') data = S.history;
-
-  if (!data.length) {
-    el.innerHTML = '<div style="color:var(--tx2);text-align:center;padding:20px;">Danh sách trống</div>';
-    return;
-  }
-  el.innerHTML = data.map(t => createTrackHTML(t)).join('');
-}
-
-function renderQueue() {
-  const el = $('desktop-queue-list');
-  if (!el) return;
-  if (!S.queue.length) {
-    el.innerHTML = '<div style="color:var(--tx2);text-align:center;padding:20px;">Hàng đợi trống</div>';
-    return;
-  }
-  el.innerHTML = S.queue.map(t => createTrackHTML(t)).join('');
-}
-
-// ==============================================================================
-// 5. TÌM KIẾM & GỢI Ý
-// ==============================================================================
-let _suggestTimer = null;
-function handleSuggest(q) {
-  clearTimeout(_suggestTimer);
-  const box = $('suggestBox');
-  if (!q || q.length < 2) { box.style.display = 'none'; return; }
-
-  _suggestTimer = setTimeout(async () => {
-    try {
-      const r = await fetch('/api/suggest?q=' + encodeURIComponent(q));
-      const data = await r.json();
-      if (data && data.length > 0) {
-        box.innerHTML = data.slice(0, 5).map(s => `
-          <div style="padding:12px 16px;font-size:14px;color:#fff;border-bottom:1px solid var(--br);cursor:pointer;" onclick="pickSuggest('${s}')">${s}</div>
-        `).join('');
-        box.style.display = 'block';
-      } else { box.style.display = 'none'; }
-    } catch { box.style.display = 'none'; }
-  }, 300);
-}
-
-function pickSuggest(q) {
-  $('q').value = q;
-  $('suggestBox').style.display = 'none';
-  doSearch(q);
-}
-
-async function doSearch(q) {
-  if (!q) return;
-  navTo('search');
-  const rEl = $('search-results');
-  rEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx2);">Đang tìm kiếm...</div>';
-  
-  try {
-    const res = await fetch('/api/sc_search?q=' + encodeURIComponent(q));
-    const data = await res.json();
-    if (data.error || !data.length) {
-      rEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx2);">Không tìm thấy kết quả</div>';
-      return;
-    }
-    rEl.innerHTML = data.map(t => createTrackHTML(t)).join('');
-  } catch (e) {
-    rEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--err);">Lỗi kết nối</div>';
-  }
-}
-
-async function pasteLink() {
-  let url = '';
-  try { url = await navigator.clipboard.readText(); } catch { url = prompt('Dán link SoundCloud:'); }
-  if (!url || !url.includes('soundcloud.com')) return toast('Link không hợp lệ', 'err');
-  
-  toast('Đang xử lý...');
-  try {
-    const r = await fetch('/api/parse', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}) });
-    const d = await r.json();
-    if (d.error) return toast(d.error, 'err');
-    playTrack(d.video_id);
-  } catch(e) { toast('Lỗi xử lý link', 'err'); }
-}
-
-// ==============================================================================
-// 6. AUDIO GRAPH (EQ, 8D)
-// ==============================================================================
-let audioCtx, analyserNode, sourceNode, pannerNode, eqBass, eqMid, eqTreble;
-let hlsInstance = null, _waveAnimId = null, _sleepTimer = null;
+let audioCtx, analyser, sourceNode, eqBassNode, eqMidNode, eqTrebleNode;
+let hlsInstance = null;
 
 function initAudioGraph() {
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyserNode = audioCtx.createAnalyser();
-    analyserNode.fftSize = 256;
-    
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
     sourceNode = audioCtx.createMediaElementSource(audio);
-    
-    eqBass = audioCtx.createBiquadFilter(); eqBass.type = 'lowshelf'; eqBass.frequency.value = 200;
-    eqMid = audioCtx.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = 1000;
-    eqTreble = audioCtx.createBiquadFilter(); eqTreble.type = 'highshelf'; eqTreble.frequency.value = 3000;
-    
-    pannerNode = audioCtx.createPanner();
-    pannerNode.panningModel = 'HRTF';
-    pannerNode.distanceModel = 'inverse';
-    pannerNode.refDistance = 20;
-    
-    sourceNode.connect(eqBass);
-    eqBass.connect(eqMid);
-    eqMid.connect(eqTreble);
-    eqTreble.connect(analyserNode);
-    analyserNode.connect(pannerNode);
-    pannerNode.connect(audioCtx.destination);
-    
-    ['eqBass', 'eqMid', 'eqTreble'].forEach(id => {
-      const el = $(id);
-      if (el) el.addEventListener('input', () => {
-        const val = parseFloat(el.value);
-        $(id+'Val').textContent = val + 'dB';
-        if (id === 'eqBass') eqBass.gain.value = val;
-        if (id === 'eqMid') eqMid.gain.value = val;
-        if (id === 'eqTreble') eqTreble.gain.value = val;
-      });
-    });
-  } catch (e) { console.warn('AudioContext error:', e); }
+    eqBassNode = audioCtx.createBiquadFilter(); eqBassNode.type = 'lowshelf'; eqBassNode.frequency.value = 200;
+    eqMidNode = audioCtx.createBiquadFilter(); eqMidNode.type = 'peaking'; eqMidNode.frequency.value = 1000;
+    eqTrebleNode = audioCtx.createBiquadFilter(); eqTrebleNode.type = 'highshelf'; eqTrebleNode.frequency.value = 3000;
+    sourceNode.connect(eqBassNode);
+    eqBassNode.connect(eqMidNode);
+    eqMidNode.connect(eqTrebleNode);
+    eqTrebleNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    drawVisualizer();
+  } catch (e) { console.log('AudioContext error', e); }
 }
 
-// ==============================================================================
-// 7. PLAYER CORE
-// ==============================================================================
-async function playTrack(id) {
-  initAudioGraph();
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  
-  S.curId = id;
-  $('miniPlayer').classList.add('on');
-  $('mpTitle').textContent = 'Đang tải...';
-  $('mpArtist').textContent = '';
-  
-  try {
-    const res = await fetch('/api/play', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ video_id: id })
-    });
-    const data = await res.json();
-    if (data.error) return toast('Lỗi: ' + data.error, 'err');
-    
-    S.curInfo = data;
-    
-    $('mpTitle').textContent = data.title;
-    $('mpArtist').textContent = data.uploader || 'SoundCloud';
-    
-    $('fpTitle').textContent = data.title;
-    $('fpArtist').textContent = data.uploader || 'Unknown';
-    $('fpBg').style.backgroundImage = `url(${data.thumbnail})`;
-    
-    if($('desktop-np-art')) {
-      $('desktop-np-art').src = data.thumbnail;
-      $('desktop-np-title').textContent = data.title;
-      $('desktop-np-artist').textContent = data.uploader || 'SoundCloud';
-    }
-    
-    S.history = S.history.filter(h => h.id !== id);
-    S.history.unshift({id: id, title: data.title, thumb: data.thumbnail, channel: data.uploader, duration: data.duration});
-    save();
-    if (S.view === 'home') renderHome();
-    if (S.view === 'library' && S.libTab === 'history') renderLibrary();
-    
-    audio.pause(); audio.src = ''; audio.load();
-    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-    
-    if (data.is_hls && data.hls_token) {
-      const hlsUrl = '/hls_proxy?t=' + data.hls_token;
-      if (window.Hls && Hls.isSupported()) {
-        hlsInstance = new Hls();
-        hlsInstance.loadSource(hlsUrl);
-        hlsInstance.attachMedia(audio);
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => { audio.play(); });
-      } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-        audio.src = hlsUrl;
-        audio.play();
-      }
-    } else {
-      audio.src = `/stream/${encodeURIComponent(id)}`;
-      audio.play();
-    }
-    
-    S._lyricsData = [];
-    S._currentLyricIdx = -1;
-    if ($('lyricsBody')) $('lyricsBody').innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx3);">Đang tải lời...</div>';
-    if ($('desktop-lyrics-content')) $('desktop-lyrics-content').innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx3);">Đang tải lời...</div>';
-    
-    if(window.navigator.vibrate) navigator.vibrate(20);
-    
-  } catch (e) {
-    toast('Lỗi phát nhạc', 'err');
-  }
-}
-
-function togglePlay() {
-  if (!S.curId) return toast('Chưa có bài hát');
-  if (audio.paused) audio.play(); else audio.pause();
-}
-
-function playNext() {
-  if (S.history.length > 1) {
-    const idx = S.history.findIndex(h => h.id === S.curId);
-    if (idx >= 0 && idx + 1 < S.history.length) {
-      playTrack(S.history[idx + 1].id);
-    }
-  } else {
-    toast('Chưa có bài tiếp theo');
-  }
-}
-
-function playPrev() {
-  if (audio.currentTime > 3) {
-    audio.currentTime = 0;
-  } else {
-    const idx = S.history.findIndex(h => h.id === S.curId);
-    if (idx > 0) {
-      playTrack(S.history[idx - 1].id);
-    } else {
-      audio.currentTime = 0;
-    }
-  }
-}
-
-function playRandomNow() {
-  if (S.history.length > 0) {
-    const random = S.history[Math.floor(Math.random() * S.history.length)];
-    playTrack(random.id);
-  } else {
-    toast('Chưa có lịch sử để phát ngẫu nhiên');
-  }
-}
-
-function toggleFav(id, el) {
-  const i = S.favorites.findIndex(f => f.id === id);
-  if (i >= 0) {
-    S.favorites.splice(i, 1);
-    toast('Đã xoá khỏi yêu thích');
-  } else {
-    const t = (S.curInfo && S.curInfo.id === id) ? S.curInfo : S.history.find(h => h.id === id);
-    S.favorites.push({ id: id, title: t?.title || 'Unknown', thumb: t?.thumbnail || t?.thumb || '', channel: t?.uploader || t?.channel || '' });
-    toast('❤️ Đã thêm vào yêu thích');
-  }
-  save();
-  
-  const isFav = S.favorites.some(f => f.id === id);
-  if($('mpFavBtn')) $('mpFavBtn').classList.toggle('on', isFav);
-  if($('fpFavBtn')) $('fpFavBtn').classList.toggle('on', isFav);
-  
-  if (el) el.querySelector('svg').style.fill = isFav ? 'var(--accent)' : '';
-  if (S.view === 'library' && S.libTab === 'favs') renderLibrary();
-}
-function toggleFavCurrent() { if (S.curInfo) toggleFav(S.curId); }
-
-// ==============================================================================
-// 8. AUDIO EVENTS & WAVEFORM
-// ==============================================================================
-audio.addEventListener('play', () => {
-  S.isPlaying = true;
-  $('mpPlayIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
-  $('fpPlayIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
-  $('mpToggleBtn').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  startWaveform();
-});
-audio.addEventListener('pause', () => {
-  S.isPlaying = false;
-  $('mpPlayIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
-  $('fpPlayIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
-  $('mpToggleBtn').innerHTML = '<path d="M8 5v14l11-7z"/>';
-});
-audio.addEventListener('timeupdate', () => {
-  if (!audio.duration) return;
-  const pct = audio.currentTime / audio.duration;
-  $('mpProgFg').style.strokeDashoffset = 138.2 - (pct * 138.2);
-  $('waveTimeBadge').textContent = `${fmt(audio.currentTime)} | ${fmt(audio.duration)}`;
-  syncLyrics();
-});
-audio.addEventListener('ended', () => {
-  playNext();
-});
-
-function startWaveform() {
-  const canvas = $('waveCanvas');
+function drawVisualizer() {
+  if (!analyser) return;
+  const canvas = $('vizCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const resize = () => { canvas.width = canvas.offsetWidth * 2; canvas.height = canvas.offsetHeight * 2; };
-  resize();
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  const resize = () => { canvas.width = canvas.clientWidth * 2; canvas.height = canvas.clientHeight * 2; };
   window.addEventListener('resize', resize);
-  const dataArray = new Uint8Array(analyserNode ? analyserNode.frequencyBinCount : 128);
-  
-  if (_waveAnimId) cancelAnimationFrame(_waveAnimId);
-  
+  resize();
   function draw() {
-    _waveAnimId = requestAnimationFrame(draw);
-    if (!analyserNode || !S.isPlaying) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
-    analyserNode.getByteFrequencyData(dataArray);
+    requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(dataArray);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    const w = canvas.width, h = canvas.height, centerY = h / 2;
-    const bars = 60, gap = w / bars, barWidth = gap * 0.6;
-    
-    for (let i = 0; i < bars; i++) {
-      const val = dataArray[Math.floor(i * (dataArray.length / bars))] / 255;
-      const barH = Math.max(4, val * h * 0.8);
-      const x = i * gap + (gap - barWidth)/2;
-      
-      const grad = ctx.createLinearGradient(x, centerY - barH/2, x, centerY + barH/2);
-      grad.addColorStop(0, '#d8b4fe'); grad.addColorStop(0.5, '#a855f7'); grad.addColorStop(1, '#7e22ce');
+    const barWidth = (canvas.width / bufferLength) * 2.5;
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const barHeight = (dataArray[i] / 255) * canvas.height;
+      const grad = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+      grad.addColorStop(0, '#a855f7');
+      grad.addColorStop(1, '#d8b4fe');
       ctx.fillStyle = grad;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x, centerY - barH/2, barWidth, barH, barWidth/2);
-      else ctx.rect(x, centerY - barH/2, barWidth, barH);
-      ctx.fill();
+      ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+      x += barWidth + 2;
     }
   }
   draw();
 }
 
-function seekWave(e) {
-  if (!audio.duration) return;
-  const rect = $('waveContainer').getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  audio.currentTime = Math.max(0, Math.min(1, x / rect.width)) * audio.duration;
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  $('toastBox').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+function openModal(id) { $(id).classList.add('on'); }
+function closeModal(e, id) { if (e && e.target !== e.currentTarget) return; $(id).classList.remove('on'); }
+
+function navTo(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const v = $(`view-${view}`); if (v) v.classList.add('active');
+  const n = document.querySelector(`[data-view="${view}"]`); if (n) n.classList.add('active');
+  if (view === 'home') renderHome();
+  if (view === 'library') renderLibrary();
 }
 
-// ==============================================================================
-// 9. TOOLS (EQ, SPEED, 8D, SLEEP, DOWNLOAD, RADIO)
-// ==============================================================================
-function toggle8D() {
+let searchTimer;
+function handleSearchInput(q) {
+  clearTimeout(searchTimer);
+  const box = $('suggestBox');
+  if (!q || q.length < 2) { box.classList.remove('active'); return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/suggest?q=' + encodeURIComponent(q));
+      const data = await r.json();
+      if (data && data.length > 0) {
+        box.innerHTML = data.map(s => `
+          <div class="sug-item" onclick="executeSearch('${s.replace(/'/g,"\\'")}')">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/></svg>
+            ${s}
+          </div>
+        `).join('');
+        box.classList.add('active');
+      } else { box.classList.remove('active'); }
+    } catch { box.classList.remove('active'); }
+  }, 300);
+}
+
+async function executeSearch(q) {
+  if (!q || !q.trim()) return;
+  $('suggestBox').classList.remove('active');
+  $('searchInput').value = q;
+  navTo('search');
+  $('searchTitle').textContent = `Kết quả cho: "${q}"`;
+  $('searchResults').innerHTML = '<p style="color:var(--tx2);">Đang tìm kiếm...</p>';
+  try {
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const data = await r.json();
+    if (!data.length) { $('searchResults').innerHTML = '<p style="color:var(--tx2);">Không tìm thấy kết quả.</p>'; return; }
+    $('searchResults').innerHTML = data.map(t => createTrackHTML(t)).join('');
+  } catch { $('searchResults').innerHTML = '<p style="color:var(--danger);">Lỗi tìm kiếm.</p>'; }
+}
+
+function createTrackHTML(t) {
+  const isPlaying = S.curInfo && S.curInfo.id === t.id;
+  const id = (t.id || '').replace(/'/g, "\\'");
+  return `
+    <div class="track-item ${isPlaying ? 'playing' : ''}" onclick="playTrack('${id}')">
+      <img class="track-img" src="${t.thumb || 'data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 24 24\\' fill=\\'%23333\\'><path d=\\'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z\\'/></svg>'}">
+      <div class="track-info">
+        <div class="track-title">${t.title || ''}</div>
+        <div class="track-artist">${t.channel || 'SoundCloud'}</div>
+      </div>
+      <div class="track-duration">${t.duration ? formatTime(t.duration) : ''}</div>
+    </div>
+  `;
+}
+
+function renderHome() {
+  $('homeRecent').innerHTML = S.history.length ? S.history.map(t => createTrackHTML(t)).join('') : '<p style="color:var(--tx2);">Chưa có lịch sử nghe.</p>';
+}
+function renderLibrary() {
+  $('libraryList').innerHTML = S.favorites.length ? S.favorites.map(t => createTrackHTML(t)).join('') : '<p style="color:var(--tx2);">Chưa có bài hát yêu thích.</p>';
+}
+function formatTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+async function playTrack(id, fromParty = false) {
   initAudioGraph();
-  if (!pannerNode) return;
-  S.is8D = !S.is8D;
-  const btn = $('btn8dSheet');
-  if(btn) btn.classList.toggle('active', S.is8D);
-  
-  if (S.is8D) {
-    toast('🎧 Đã bật 8D Audio');
-    let angle = 0;
-    setInterval(() => {
-      if (!S.is8D || audio.paused) return;
-      angle += 0.05;
-      const t = audioCtx.currentTime;
-      pannerNode.positionX.setValueAtTime(Math.sin(angle), t);
-      pannerNode.positionZ.setValueAtTime(Math.cos(angle), t);
-    }, 50);
-  } else {
-    toast('Tắt 8D Audio');
-    pannerNode.positionX.setValueAtTime(0, audioCtx.currentTime);
-    pannerNode.positionZ.setValueAtTime(1, audioCtx.currentTime);
-  }
-}
-
-function setSpeed(val) {
-  audio.playbackRate = val;
-  hideSubMenu();
-  toast('Tốc độ: ' + val + 'x');
-}
-
-function applyEQPreset(name) {
-  const p = { flat: [0,0,0], bass: [10,-2,-1], vocal: [-2,6,3], loud: [6,2,6] }[name];
-  $('eqBass').value = p[0]; $('eqMid').value = p[1]; $('eqTreble').value = p[2];
-  $('eqBassVal').textContent = p[0] + 'dB'; $('eqMidVal').textContent = p[1] + 'dB'; $('eqTrebleVal').textContent = p[2] + 'dB';
-  if (eqBass) eqBass.gain.value = p[0];
-  if (eqMid) eqMid.gain.value = p[1];
-  if (eqTreble) eqTreble.gain.value = p[2];
-}
-
-function setSleepTimer(min) {
-  if (_sleepTimer) clearTimeout(_sleepTimer);
-  hideSubMenu();
-  if (min === 0) return toast('Đã tắt hẹn giờ');
-  toast(`Hẹn giờ tắt sau ${min} phút`);
-  _sleepTimer = setTimeout(() => { audio.pause(); toast('💤 Đã tắt nhạc'); }, min * 60000);
-}
-
-async function startDownload() {
-  if (!S.curId) return toast('Chưa có bài hát');
-  hideSubMenu();
-  toast('Đang chuẩn bị tải...');
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  $('mpTitle').textContent = 'Đang tải...';
+  $('miniPlayer').classList.add('on');
   try {
-    const res = await fetch('/api/download', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ video_id: S.curId })
-    });
-    const data = await res.json();
-    if (data.task_id) {
-      const check = setInterval(async () => {
-        const st = await fetch('/api/download_status/' + data.task_id).then(r => r.json());
-        if (st.status === 'done') {
-          clearInterval(check);
-          window.location.href = '/api/download_file/' + data.task_id;
-          toast('✅ Tải thành công!');
-        } else if (st.status === 'error') {
-          clearInterval(check); toast('Lỗi tải', 'err');
-        }
-      }, 2000);
-    }
-  } catch (e) { toast('Lỗi tải nhạc', 'err'); }
-}
-
-async function startSongRadio() {
-  if (!S.curInfo) return toast('Chưa phát bài nào');
-  hideSubMenu();
-  toast('Đang tạo Radio...');
-  try {
-    const r = await fetch('/api/sc_search?q=' + encodeURIComponent(S.curInfo.uploader));
+    const r = await fetch('/api/play', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ video_id: id }) });
     const data = await r.json();
-    if (data.length) {
-      S.queue = data.filter(t => t.id !== S.curId);
-      save();
-      toast(`📡 Đã tạo Radio: ${S.queue.length} bài`);
-      renderQueue();
-    }
-  } catch(e) { toast('Lỗi tạo Radio', 'err'); }
-}
-
-function shareCurrent() { toast('Đã copy link chia sẻ!'); }
-function openParty() { $('partyModal').classList.add('on'); }
-function closeModal(id) { $(id).classList.remove('on'); }
-
-// ==============================================================================
-// 10. LYRICS (FETCH, SYNC, SHARE)
-// ==============================================================================
-async function loadLyrics() {
-  if (!S.curInfo) return;
-  const setBody = (html) => {
-    if ($('lyricsBody')) $('lyricsBody').innerHTML = html;
-    if ($('desktop-lyrics-content')) $('desktop-lyrics-content').innerHTML = html;
-  };
-  setBody('<div style="text-align:center;padding:20px;">Đang tải...</div>');
-  
-  try {
-    let artist = (S.curInfo.uploader || '').replace(/official|music|video|lyrics|audio/gi, '').trim();
-    let title = (S.curInfo.title || '').split('|')[0].replace(/official|music|video|lyrics|audio/gi, '').trim();
-    const r = await fetch(`/api/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
-    const data = await r.json();
-    
-    if (data.lyrics) {
-      parseLyrics(data.lyrics);
+    if (data.error) throw new Error(data.error);
+    S.curInfo = data;
+    $('mpTitle').textContent = data.title;
+    $('mpArtist').textContent = data.uploader || 'SoundCloud';
+    $('mpArt').src = data.thumbnail || '';
+    $('rpTitle').textContent = data.title;
+    $('rpArtist').textContent = data.uploader || 'SoundCloud';
+    $('rpArt').src = data.thumbnail || '';
+    $('fpTitle').textContent = data.title;
+    $('fpArtist').textContent = data.uploader || 'SoundCloud';
+    $('fpArt').src = data.thumbnail || '';
+    $('fpBg').style.backgroundImage = `url(${data.thumbnail || ''})`;
+    S.history = S.history.filter(h => h.id !== data.id);
+    S.history.unshift({ id: data.id, title: data.title, thumb: data.thumbnail, channel: data.uploader, duration: data.duration });
+    S.history = S.history.slice(0, 50);
+    localStorage.setItem('nv_hist', JSON.stringify(S.history));
+    if ($('view-home').classList.contains('active')) renderHome();
+    audio.pause(); audio.src = '';
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    if (data.is_hls && data.hls_token) {
+      const hlsUrl = '/hls_proxy?t=' + data.hls_token;
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls();
+        hlsInstance.loadSource(hlsUrl);
+        hlsInstance.attachMedia(audio);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => audio.play());
+      } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+        audio.src = hlsUrl; audio.play();
+      }
     } else {
-      setBody('<div style="text-align:center;padding:20px;color:var(--tx3);">Không tìm thấy lời bài hát.</div>');
+      audio.src = `/stream/${encodeURIComponent(data.id)}`;
+      audio.play();
     }
-  } catch {
-    setBody('<div style="text-align:center;padding:20px;color:var(--err);">Lỗi tải lời bài hát.</div>');
-  }
+    loadLyrics(data.uploader, data.title);
+    if (S.party.code && !fromParty) partyAction('play', data);
+    updateFavUI();
+  } catch (e) { showToast('Lỗi: ' + e.message); }
 }
 
-function parseLyrics(text) {
-  S._lyricsData = [];
-  const lines = text.split('\n');
-  const lrcRegex = /^\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
-  let hasLrc = false;
-  let html = '';
-  
-  for (let line of lines) {
-    line = line.trim(); if (!line) continue;
-    const match = line.match(lrcRegex);
-    if (match) {
-      hasLrc = true;
-      const t = parseInt(match[1])*60 + parseInt(match[2]) + (match[3] ? parseInt(match[3].padEnd(3,'0'))/1000 : 0);
-      if (match[4].trim()) S._lyricsData.push({ time: t, text: match[4].trim() });
-    } else if (!hasLrc) {
-      S._lyricsData.push({ time: -1, text: line });
-    }
-  }
-  
-  if (hasLrc) {
-    S._lyricsData.sort((a,b) => a.time - b.time);
-    html = S._lyricsData.map((l,i) => `<div class="lyrics-line" data-time="${l.time}" data-idx="${i}">${l.text}</div>`).join('');
-  } else {
-    html = `<div style="font-size:15px;line-height:1.8;color:#fff;">${text.replace(/\n/g, '<br>')}</div>`;
-  }
-  
-  if ($('lyricsBody')) $('lyricsBody').innerHTML = html;
-  if ($('desktop-lyrics-content')) $('desktop-lyrics-content').innerHTML = html;
-  S._currentLyricIdx = -1;
+function togglePlay() {
+  if (!S.curInfo) return showToast('Chưa có bài hát nào');
+  if (audio.paused) audio.play(); else audio.pause();
+}
+function playNext() {
+  if (!S.history.length) return;
+  const idx = S.history.findIndex(h => h.id === S.curInfo?.id);
+  let nextIdx = S.isShuffle ? Math.floor(Math.random() * S.history.length) : idx + 1;
+  if (nextIdx >= S.history.length) nextIdx = 0;
+  if (nextIdx !== idx) playTrack(S.history[nextIdx].id);
+  else audio.currentTime = 0;
+}
+function playPrev() {
+  if (!S.history.length) return;
+  if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+  const idx = S.history.findIndex(h => h.id === S.curInfo?.id);
+  let prevIdx = idx - 1; if (prevIdx < 0) prevIdx = S.history.length - 1;
+  if (prevIdx !== idx) playTrack(S.history[prevIdx].id);
+}
+function playRandom() {
+  if (S.history.length) playTrack(S.history[Math.floor(Math.random() * S.history.length)].id);
+  else showToast('Chưa có lịch sử để phát ngẫu nhiên');
+}
+function toggleFullPlayer() { $('fullPlayer').classList.toggle('on'); }
+function switchRPTab(tab, btn) {
+  document.querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.rp-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  $(`rp-${tab}`).classList.add('active');
+}
+function seekAudio(val) { if (audio.duration) audio.currentTime = (val / 100) * audio.duration; }
+function toggleShuffle() { S.isShuffle = !S.isShuffle; $('btnShuffle').classList.toggle('active', S.isShuffle); }
+function toggleRepeat() { S.isRepeat = !S.isRepeat; $('btnRepeat').classList.toggle('active', S.isRepeat); }
+
+function toggleFavCurrent() {
+  if (!S.curInfo) return;
+  const i = S.favorites.findIndex(f => f.id === S.curInfo.id);
+  if (i >= 0) { S.favorites.splice(i, 1); showToast('Đã xoá khỏi yêu thích'); }
+  else { S.favorites.push(S.curInfo); showToast('❤️ Đã thêm vào yêu thích'); }
+  localStorage.setItem('nv_favs', JSON.stringify(S.favorites));
+  updateFavUI();
+  if ($('view-library').classList.contains('active')) renderLibrary();
+}
+function updateFavUI() {
+  const isFav = S.curInfo && S.favorites.some(f => f.id === S.curInfo.id);
+  $('fpFavBtn').classList.toggle('active', isFav);
 }
 
-function syncLyrics() {
-  if (!S._lyricsData.length || S._lyricsData[0].time === -1 || audio.paused) return;
-  let active = -1;
-  for (let i = 0; i < S._lyricsData.length; i++) {
-    if (audio.currentTime >= S._lyricsData[i].time) active = i; else break;
-  }
-  if (active !== S._currentLyricIdx) {
-    S._currentLyricIdx = active;
-    const update = (id) => {
-      const container = $(id);
-      if (!container) return;
-      container.querySelectorAll('.lyrics-line').forEach(el => el.classList.remove('active'));
-      const a = container.querySelector(`.lyrics-line[data-idx="${active}"]`);
-      if (a) { a.classList.add('active'); a.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    };
-    update('lyricsBody');
-    update('desktop-lyrics-content');
-  }
-}
-
-async function shareLyrics() {
-  if (!S.curInfo || !S._lyricsData.length) return toast('Chưa có lời bài hát', 'err');
-  const cur = Math.max(0, S._currentLyricIdx);
-  const snippet = S._lyricsData.slice(cur, cur + 3).map(l => l.text).join('<br>');
-  
-  $('shareImg').src = S.curInfo.thumbnail || '';
-  $('shareTitle').textContent = S.curInfo.title || '';
-  $('shareArtist').textContent = S.curInfo.uploader || '';
-  $('shareSnippet').innerHTML = snippet || '...';
-  
-  toast('Đang tạo ảnh...');
-  try {
-    const canvas = await html2canvas($('shareLyricsCard'), { scale: 2, backgroundColor: null });
-    const link = document.createElement('a');
-    link.download = 'nova-lyrics.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    toast('✅ Đã tải ảnh xuống!', 'ok');
-  } catch(e) { toast('Lỗi tạo ảnh', 'err'); }
-}
-
-// ==============================================================================
-// 11. INIT & SERVICE WORKER
-// ==============================================================================
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-window.addEventListener('load', () => {
-  const ls = document.getElementById('loadingScreen');
-  if (ls) { ls.style.opacity = '0'; setTimeout(() => ls.remove(), 800); }
+audio.addEventListener('play', () => {
+  S.isPlaying = true;
+  $('mpPlayIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+  $('fpPlayIcon').innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+  $('vinylDisc').classList.add('spinning');
+  $('fpVinylDisc').classList.add('spinning');
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
+audio.addEventListener('pause', () => {
+  S.isPlaying = false;
+  $('mpPlayIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+  $('fpPlayIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+  $('vinylDisc').classList.remove('spinning');
+  $('fpVinylDisc').classList.remove('spinning');
+});
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  $('mpProgressFill').style.width = pct + '%';
+  $('fpSeek').value = pct;
+  $('fpCurTime').textContent = formatTime(audio.currentTime);
+  $('fpTotalTime').textContent = formatTime(audio.duration);
+  syncLyrics();
+});
+audio.addEventListener('ended', () => {
+  if (S.isRepeat) { audio.currentTime = 0; audio.play(); }
+  else playNext();
 });
 
-// Init
+function updateEQ(band, val) {
+  if (!audioCtx) initAudioGraph();
+  const v = parseFloat(val);
+  if (band === 'bass') { if (eqBassNode) eqBassNode.gain.value = v; $('valBass').textContent = v + 'dB'; }
+  if (band === 'mid') { if (eqMidNode) eqMidNode.gain.value = v; $('valMid').textContent = v + 'dB'; }
+  if (band === 'treble') { if (eqTrebleNode) eqTrebleNode.gain.value = v; $('valTreble').textContent = v + 'dB'; }
+}
+function setEQPreset(name) {
+  const presets = { flat: [0,0,0], bass: [8,0,-2], vocal: [-2,4,2], electronic: [6,-2,6] };
+  const p = presets[name] || [0,0,0];
+  $('eqBass').value = p[0]; $('eqMid').value = p[1]; $('eqTreble').value = p[2];
+  updateEQ('bass', p[0]); updateEQ('mid', p[1]); updateEQ('treble', p[2]);
+}
+
+async function loadLyrics(artist, title) {
+  $('lyricsContainer').innerHTML = '<p style="text-align:center; color:var(--tx2);">Đang tải lời...</p>';
+  S.lyrics = []; S.curLyricIdx = -1;
+  try {
+    artist = (artist || '').replace(/official|music|video|lyrics|audio/gi, '').trim();
+    title = (title || '').split('|')[0].replace(/official|music|video|lyrics|audio/gi, '').trim();
+    const r = await fetch(`/api/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`);
+    const data = await r.json();
+    if (data.lyrics) parseLyrics(data.lyrics);
+    else $('lyricsContainer').innerHTML = '<p style="text-align:center; color:var(--tx3);">Không tìm thấy lời bài hát.</p>';
+  } catch {
+    $('lyricsContainer').innerHTML = '<p style="text-align:center; color:var(--tx3);">Lỗi tải lời bài hát.</p>';
+  }
+}
+function parseLyrics(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const lrcRegex = /^\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
+  let hasLrc = false;
+  lines.forEach(line => {
+    const m = line.match(lrcRegex);
+    if (m) {
+      hasLrc = true;
+      const t = parseInt(m[1])*60 + parseInt(m[2]) + (m[3] ? parseInt(m[3].padEnd(3,'0'))/1000 : 0);
+      if (m[4].trim()) S.lyrics.push({ time: t, text: m[4].trim() });
+    } else if (!hasLrc) S.lyrics.push({ time: -1, text: line });
+  });
+  if (hasLrc) {
+    S.lyrics.sort((a,b) => a.time - b.time);
+    $('lyricsContainer').innerHTML = S.lyrics.map((l,i) => `<div class="lyrics-line" data-idx="${i}">${l.text}</div>`).join('');
+  } else {
+    $('lyricsContainer').innerHTML = `<div style="font-size:15px; line-height:1.8; color:var(--tx);">${text.replace(/\n/g, '<br>')}</div>`;
+  }
+}
+function syncLyrics() {
+  if (!S.lyrics.length || S.lyrics[0].time === -1) return;
+  let active = -1;
+  for (let i = 0; i < S.lyrics.length; i++) { if (audio.currentTime >= S.lyrics[i].time) active = i; else break; }
+  if (active !== S.curLyricIdx) {
+    S.curLyricIdx = active;
+    document.querySelectorAll('.lyrics-line').forEach(el => el.classList.remove('active'));
+    const el = document.querySelector(`.lyrics-line[data-idx="${active}"]`);
+    if (el) { el.classList.add('active'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
+}
+
+async function createParty() {
+  const user = $('partyName').value.trim() || 'Host';
+  const r = await fetch('/api/party/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user }) });
+  const data = await r.json();
+  enterPartyRoom(data.code, data.sid, user);
+}
+async function joinParty() {
+  const user = $('partyName').value.trim() || 'Khách';
+  const code = $('partyCodeInput').value.trim().toUpperCase();
+  if (!code) return showToast('Vui lòng nhập mã phòng');
+  const r = await fetch('/api/party/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code, user }) });
+  const data = await r.json();
+  if (data.error) return showToast(data.error);
+  enterPartyRoom(data.code, data.sid, user);
+}
+function enterPartyRoom(code, sid, user) {
+  S.party = { code, sid, user, timer: null };
+  $('partyStartView').style.display = 'none';
+  $('partyRoomView').style.display = 'block';
+  $('roomCodeDisplay').textContent = code;
+  showToast('Đã tham gia phòng!');
+  S.party.timer = setInterval(syncParty, 2000);
+  syncParty();
+}
+async function syncParty() {
+  if (!S.party.code) return;
+  try {
+    const r = await fetch('/api/party/sync', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code: S.party.code, sid: S.party.sid }) });
+    const data = await r.json();
+    if (data.error) { leaveParty(); return; }
+    $('roomMembers').textContent = `${data.members.length} người online`;
+    $('chatContainer').innerHTML = data.chat.map(c => `<div class="chat-msg"><span class="chat-user">${c.user}:</span> ${c.text}</div>`).join('');
+    $('chatContainer').scrollTop = $('chatContainer').scrollHeight;
+    if (data.playing && (!S.curInfo || S.curInfo.id !== data.playing.id)) playTrack(data.playing.id, true);
+  } catch(e) { console.log(e); }
+}
+async function partyAction(action, track = null, text = null, progress = null) {
+  if (!S.party.code) return;
+  await fetch('/api/party/sync', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code: S.party.code, sid: S.party.sid, action, track, text, progress }) });
+}
+function sendChat() {
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  partyAction('chat', null, text);
+  $('chatInput').value = '';
+}
+function leaveParty() {
+  if (S.party.timer) clearInterval(S.party.timer);
+  S.party = { code: null, sid: null, user: '', timer: null };
+  $('partyStartView').style.display = 'block';
+  $('partyRoomView').style.display = 'none';
+  showToast('Đã rời phòng');
+}
+
 renderHome();
-audio.volume = S.volume;
+renderLibrary();
+initAudioGraph();
 </script>
 </body>
-  </html>
+</html>
