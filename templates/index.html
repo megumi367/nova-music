@@ -15,14 +15,14 @@
 <style>
 /* ================= DESIGN TOKENS & TYPOGRAPHY ================= */
 :root {
-  --bg: #06060a; --s1: rgba(22,22,30,.75); --s2: rgba(35,35,48,.65); --s3: rgba(50,50,68,.55);
+  --bg: #040407; --s1: rgba(18,18,26,.75); --s2: rgba(30,30,42,.65); --s3: rgba(45,45,64,.55);
   --br: rgba(255,255,255,.08); --br2: rgba(255,255,255,.18);
   --tx: #ffffff; --tx2: #a1a1aa; --tx3: #71717a;
   --accent: #8b5cf6; --accent-2: #ec4899; --accent-soft: rgba(139,92,246,.18);
   --grad: linear-gradient(135deg, var(--accent), var(--accent-2));
   --ok: #10b981; --err: #f43f5e;
   --ease: cubic-bezier(.16,1,.3,1); --spring: cubic-bezier(.34,1.56,.64,1);
-  --r: 22px; --r-sm: 16px; --sh: 0 16px 48px rgba(0,0,0,.65);
+  --r: 22px; --sh: 0 16px 48px rgba(0,0,0,.65);
 }
 [data-theme="midnight"]{--bg:#070d1d;--accent:#38bdf8;--accent-2:#818cf8;--accent-soft:rgba(56,189,248,.18);--grad:linear-gradient(135deg,#38bdf8,#818cf8)}
 [data-theme="aurora"]{--bg:#030e18;--accent:#22d3ee;--accent-2:#34d399;--accent-soft:rgba(34,211,238,.18);--grad:linear-gradient(135deg,#22d3ee,#34d399)}
@@ -105,7 +105,7 @@ body{padding:14px;padding-bottom:120px}
 .suggest-item{padding:12px 16px;font-size:13.5px;color:var(--tx2);cursor:pointer;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:12px;transition:background .2s}
 .suggest-item:hover{background:var(--s3);color:var(--tx)}
 
-/* ================= CONTENT & TRACK CARDS (BO GÓC MỀM MẠI) ================= */
+/* ================= CONTENT & TRACK CARDS (BO GÓC MỀM MẠI, THẨM MỸ) ================= */
 .content{flex:1;overflow-y:auto;padding:24px;scroll-behavior:smooth}
 .view{display:none}
 .view.on{display:block;animation:fadeIn .4s var(--ease)}
@@ -134,9 +134,9 @@ body{padding:14px;padding-bottom:120px}
 
 /* Track Cards (Grid - Bo góc mềm mại, thẩm mỹ cao) */
 .tracks.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:18px}
-.tracks.grid .track{flex-direction:column;align-items:stretch;padding:14px;background:var(--s1);border:1px solid var(--br);border-radius:20px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.tracks.grid .track:hover{transform:translateY(-5px);box-shadow:0 16px 36px rgba(0,0,0,.45);border-color:var(--br2)}
-.tracks.grid .track-art{width:100%;height:auto;aspect-ratio:1;border-radius:14px;margin-bottom:12px}
+.tracks.grid .track{flex-direction:column;align-items:stretch;padding:14px;background:var(--s1);border:1px solid var(--br);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.tracks.grid .track:hover{transform:translateY(-5px);box-shadow:0 18px 40px rgba(0,0,0,.5);border-color:var(--br2)}
+.tracks.grid .track-art{width:100%;height:auto;aspect-ratio:1;border-radius:16px;margin-bottom:12px}
 .tracks.grid .track-title{font-size:13.5px;font-weight:700;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;height:2.8em}
 .tracks.grid .track-acts, .tracks.grid .track-num{display:none}
 
@@ -185,6 +185,12 @@ body{padding:14px;padding-bottom:120px}
 .ne{padding:10px 4px;border-radius:12px;background:rgba(255,255,255,.04);color:var(--tx2);display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9.5px;font-weight:700;transition:all .2s;text-transform:uppercase}
 .ne:hover{color:var(--tx);background:rgba(255,255,255,.08)}
 .ne svg{width:16px;height:16px;fill:currentColor}
+
+/* Lyrics Styles */
+.lyrics-view{flex:1;overflow-y:auto;padding:8px 4px;display:flex;flex-direction:column;gap:2px;max-height:300px;scroll-behavior:smooth}
+.lyrics-line{font-size:13.5px;line-height:1.8;color:var(--tx3);padding:4px 10px;border-radius:8px;text-align:center;font-weight:600;cursor:pointer;transition:all .3s}
+.lyrics-line:hover{color:var(--tx2)}
+.lyrics-line.active{color:#fff;background:var(--accent-soft);font-weight:800;transform:scale(1.02)}
 
 /* ================= PLAYER BAR (TINH TẾ & THẨM MỸ) ================= */
 .player{position:fixed;bottom:14px;left:14px;right:14px;height:90px;background:rgba(12,10,26,.88);border:1px solid var(--br2);border-radius:24px;backdrop-filter:blur(40px) saturate(180%);display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;padding:0 24px;gap:18px;z-index:100;box-shadow:0 20px 60px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.1)}
@@ -353,7 +359,7 @@ body{padding:14px;padding-bottom:120px}
         </button>
       </div>
       <div class="tb-actions">
-        <!-- Device Mode Switcher (Chọn thiết bị / tự nhận biết) -->
+        <!-- Device Mode Switcher (Chọn thiết bị hoặc tự nhận biết) -->
         <div class="device-toggle">
           <button class="device-btn active" id="devAuto" onclick="setDeviceMode('auto')">Auto</button>
           <button class="device-btn" id="devPC" onclick="setDeviceMode('pc')">PC</button>
@@ -404,14 +410,13 @@ body{padding:14px;padding-bottom:120px}
       <!-- Download View -->
       <div class="view" id="view-download">
         <div class="sec-hd"><h2>Tải nhạc MP3</h2></div>
-        <div style="background:var(--s2);padding:24px;border-radius:20px;border:1px solid var(--br)">
+        <div style="background:var(--s2);padding:24px;border-radius:22px;border:1px solid var(--br)">
           <div style="margin-bottom:12px;font-weight:700">Dán link SoundCloud</div>
           <div style="display:flex;gap:10px">
-            <input id="linkInput" placeholder="https://soundcloud.com/..." style="flex:1;height:44px;padding:0 16px;background:var(--s3);border-radius:12px;color:var(--tx)">
-            <button onclick="doParse()" style="padding:0 24px;background:var(--grad);border-radius:12px;font-weight:700">Lấy info</button>
+            <input id="linkInput" placeholder="https://soundcloud.com/..." style="flex:1;height:44px;padding:0 16px;background:var(--s3);border-radius:14px;color:var(--tx)">
+            <button onclick="doParse()" style="padding:0 24px;background:var(--grad);border-radius:14px;font-weight:700">Lấy info</button>
           </div>
         </div>
-        <div id="preview" style="display:none;margin-top:20px;background:var(--s2);padding:20px;border-radius:20px"></div>
       </div>
     </div>
   </main>
@@ -460,7 +465,7 @@ body{padding:14px;padding-bottom:120px}
 
       <!-- Lyrics -->
       <div class="rp-view" id="rp-lyrics">
-        <div id="lyricsBody" style="text-align:center;color:var(--tx3);padding:40px 0">Chưa có lời bài hát</div>
+        <div class="lyrics-view" id="lyricsBody"><div style="text-align:center;color:var(--tx3);padding:40px 0">Chưa có lời bài hát</div></div>
       </div>
     </div>
   </aside>
@@ -495,11 +500,11 @@ body{padding:14px;padding-bottom:120px}
   </div>
 </div>
 
-<!-- Full Player (Mới, tinh tế & thẩm mỹ) -->
+<!-- Full Player (Tinh tế & Thẩm mỹ cao) -->
 <div class="full-player" id="fullPlayer">
   <div class="fp-hd">
     <button onclick="toggleFullPlayer()">⌄</button>
-    <span>Trình phát nhạc</span>
+    <span>Đang phát</span>
     <div style="width:42px"></div>
   </div>
   <div class="fp-art-w">
@@ -570,6 +575,8 @@ const S = {
 const audio = $('audio');
 let audioCtx, analyserNode, sourceNode, hlsInstance;
 let _fpOpen = false;
+let _lyricsData = [];
+let _currentLyricIdx = -1;
 
 function $(id){return document.getElementById(id);}
 function toast(msg, type=''){
@@ -599,10 +606,9 @@ function setDeviceMode(mode) {
   } else if(mode==='mobile') {
     app.style.gridTemplateColumns = '1fr';
   } else {
-    // Auto
     app.style.gridTemplateColumns = window.innerWidth <= 1024 ? '1fr' : '250px 1fr 340px';
   }
-  toast('Đã chuyển chế độ: ' + mode.toUpperCase(), 'ok');
+  toast('Chế độ: ' + mode.toUpperCase(), 'ok');
 }
 
 // Theme
@@ -652,7 +658,7 @@ function startVisualizer(){
       const cx = canvas.width/2, cy = canvas.height/2, r = Math.min(cx,cy)*0.75;
       for(let i=0; i<data.length; i++){
         const val = data[i]/255, angle = (i/data.length)*Math.PI*2;
-        const h = val * 20;
+        const h = val * 22;
         const x1 = cx + Math.cos(angle)*r, y1 = cy + Math.sin(angle)*r;
         const x2 = cx + Math.cos(angle)*(r+h), y2 = cy + Math.sin(angle)*(r+h);
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
@@ -740,7 +746,26 @@ async function playTrack(vid, meta){
 
     audio.src = d.is_hls ? ('/hls_proxy?t='+d.hls_token) : ('/stream/'+encodeURIComponent(vid));
     audio.play().catch(()=>{});
+    loadLyrics(d.uploader, d.title);
   }catch(e){ toast('Lỗi phát nhạc', 'err'); }
+}
+
+async function loadLyrics(artist, title){
+  const el = $('lyricsBody');
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--tx3);padding:20px">Đang tải lời...</div>';
+  try{
+    const r = await fetch(`/api/lyrics?artist=${encodeURIComponent(artist||'')}&title=${encodeURIComponent(title||'')}`);
+    const d = await r.json();
+    if(d.lyrics){
+      _lyricsData = d.lyrics.split('\n').map(l=>({text:l}));
+      el.innerHTML = _lyricsData.map(l=>`<div class="lyrics-line">${l.text}</div>`).join('');
+    } else {
+      el.innerHTML = '<div style="text-align:center;color:var(--tx3);padding:20px">Không tìm thấy lời bài hát</div>';
+    }
+  }catch{
+    el.innerHTML = '<div style="text-align:center;color:var(--tx3);padding:20px">Không có lời</div>';
+  }
 }
 
 function togglePlay(){
@@ -785,6 +810,7 @@ function toggleFullPlayer(){
     $('fpArt').src = S.curInfo.thumb \vert{}\vert{}$('pbArt').src;
     $('fpTitle').textContent = S.curInfo.title \vert{}\vert{}$('pbT').textContent;
     $('fpArtist').textContent = S.curInfo.channel \vert{}\vert{}$('pbA').textContent;
+    $('fpLyrics').innerHTML =$('lyricsBody').innerHTML;
   }
 }
 
