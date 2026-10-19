@@ -702,9 +702,93 @@ html,body{font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-se
 .am-btn:active { background: rgba(255,255,255,.15); transform: scale(.95); }
 .am-btn.active { border-color: #a78bfa; background: rgba(167,139,250,.15); color: #a78bfa; }
 .am-icon { font-size: 24px; }
+
+/* ===== NOVA UI V3 - TOP FX & FLOATING BARS ===== */
+/* 1. Top FX Bar */
+.top-fx-bar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 24px);
+    max-width: 480px;
+    background: rgba(15, 12, 35, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2000;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.fx-btn {
+    color: rgba(255,255,255,0.6);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; cursor: pointer; background: none; border: none;
+}
+.fx-btn:active { transform: scale(0.9); color: #fff; }
+.fx-btn svg { width: 18px; height: 18px; fill: currentColor; }
+.fx-btn.text-btn { font-size: 13px; font-weight: 800; color: var(--tx2); }
+.fx-btn.text-btn.active { color: var(--accent); }
+
+/* 2. Player Bar V3 */
+.player {
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    left: 12px !important; right: 12px !important;
+    height: 84px !important;
+    border-radius: 24px !important;
+    background: rgba(15, 12, 35, 0.85) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    display: flex !important; align-items: center !important; justify-content: space-between !important;
+    padding: 0 16px !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8) !important;
+}
+.pb-c { flex-direction: row !important; gap: 20px !important; }
+.pb-ctrl { gap: 12px !important; }
+.pc.main { width: 48px !important; height: 48px !important; background: #fff !important; color: #000 !important; box-shadow: 0 0 20px rgba(255,255,255,0.2) !important; }
+.pc.main svg { width: 22px !important; height: 22px !important; }
+
+/* 3. Bottom Nav V3 */
+.bnav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    left: 12px !important; right: 12px !important;
+    height: 64px !important;
+    border-radius: 20px !important;
+    background: rgba(15, 12, 35, 0.85) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    z-index: 99 !important; padding: 6px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+.bn { border-radius: 14px !important; }
+.bn.on { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
+.bn.on::after { display: none !important; }
+
+/* Ẩn thanh Top FX trên Desktop (chỉ hiện trên Mobile) */
+@media (min-width: 769px) {
+    .top-fx-bar { display: none; }
+}
 </style>
-</head>
 <body>
+
+<!-- TOP FX BAR (MỚI) -->
+<div class="top-fx-bar">
+  <button class="fx-btn" onclick="toggleFavCurrent()" id="topBtnFav"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
+  <button class="fx-btn text-btn" onclick="toggleSpeedPop(event)"><span id="topSpeedVal">1x</span></button>
+  <button class="fx-btn" onclick="togglePitchPop(event)"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></button>
+  <button class="fx-btn text-btn" onclick="toggle8D()" id="topBtn8d">8D</button>
+  <button class="fx-btn" onclick="toggleEQPanel(event)"><svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg></button>
+  <button class="fx-btn" onclick="openVideo()"><svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
+  <button class="fx-btn" onclick="openInfoModal()"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-8C6.48 3 2 7.48 2 12s4.48 9 10 9 10-4.48 10-9-4.48-9-10-9z"/></svg></button>
+</div>
 
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-logo">
@@ -902,7 +986,7 @@ html,body{font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-se
           <div class="np-time"><span id="npTCur">0:00</span><span id="npTDur">0:00</span></div>
         </div>
         <div class="np-ctrls">
-          <button class="nc" onclick="playRandomNow()" title="Đổi bài"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zm0-9C6.67 9 6 8.33 6 7.5S6.67 6 7.5 6 9 6.67 9 7.5 8.33 9 7.5 9zm4.5 4.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5 4.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm0-9c-.83 0-1.5-.67-1.5-1.5S15.67 6 16.5 6 18 6.67 18 7.5 17.33 9 16.5 9z"/></svg></button>
+          <button class="nc" onclick="playRandomNow()" title="Đổi bài"><svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
           <button class="nc" onclick="playPrev()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
           <button class="nc main" onclick="togglePlay()" id="npPlay"><svg id="npPIc" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
           <button class="nc" onclick="playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
@@ -939,37 +1023,30 @@ html,body{font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-se
   </aside>
 </div>
 
-<!-- PLAYER BAR -->
+<!-- PLAYER BAR V3 -->
 <div class="player" id="player">
-  <div class="pb-l" onclick="toggleFullPlayer()">
+  <div class="pb-l" onclick="toggleFullPlayer()" style="flex-shrink:0">
     <img class="pb-art" id="pbArt" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%237568a3'%3E%3Cpath d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z'/%3E%3C/svg%3E">
     <div class="pb-txt"><div class="pb-t" id="pbT">Chưa phát bài nào</div><div class="pb-a" id="pbA">Chọn bài hát để bắt đầu</div></div>
   </div>
+  
   <div class="pb-c">
     <div class="pb-ctrl">
-      <button class="pc" onclick="playRandomNow()" title="Đổi bài"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM7.5 18c-.83 0-1.5-.67-1.5-1.5S6.67 15 7.5 15s1.5.67 1.5 1.5S8.33 18 7.5 18zm0-9C6.67 9 6 8.33 6 7.5S6.67 6 7.5 6 9 6.67 9 7.5 8.33 9 7.5 9zm4.5 4.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5 4.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm0-9c-.83 0-1.5-.67-1.5-1.5S15.67 6 16.5 6 18 6.67 18 7.5 17.33 9 16.5 9z"/></svg></button>
+      <button class="pc" onclick="playRandomNow()" title="Đổi bài"><svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
       <button class="pc" onclick="playPrev()"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
       <button class="pc main" onclick="togglePlay()" id="playBtn"><svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
       <button class="pc" onclick="playNext()"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
       <button class="pc" onclick="toggleLoop()" id="loopBtn"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
     </div>
-    <div class="pb-prog">
-      <span class="pb-time" id="timeCur">0:00</span>
-      <div class="pb-bar" id="progressBar"><div class="pb-bar-t"><div class="pb-bar-f" id="progressFill"></div></div></div>
-      <span class="pb-time" id="timeDur">0:00</span>
+    <div class="pb-prog" style="position:absolute; bottom:0; left:16px; right:16px; height:2px; opacity:0.5;">
+      <div class="pb-bar" id="progressBar" style="width:100%"><div class="pb-bar-t" style="background:transparent"><div class="pb-bar-f" id="progressFill"></div></div></div>
     </div>
   </div>
-  <div class="pb-r">
-    <button class="pc" onclick="toggleFavCurrent()" id="pbFav"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
-    <button class="pc speed-btn" onclick="toggleSpeedPop(event)" title="Tốc độ"><span class="spd-val" id="speedVal">1x</span></button>
-    <button class="pc" onclick="togglePitchPop(event)" title="Đổi tông"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></button>
-    <button class="pc" onclick="toggle8D(event)" id="btn8d" title="Hiệu ứng 8D" style="font-size:13px;font-weight:900;color:var(--tx2)">8D</button>
-    <button class="pc" onclick="toggleEQPanel(event)" title="Equalizer"><svg viewBox="0 0 24 24"><path d="M10 20h4V4h-4v16zm-6 0h4v-8H4v8zM16 9v11h4V9h-4z"/></svg></button>
-    <button class="pc" onclick="openVideo()"><svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
-    <button class="pc" onclick="openInfoModal()"><svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-8C6.48 3 2 7.48 2 12s4.48 9 10 9 10-4.48 10-9-4.48-9-10-9z"/></svg></button>
-    <div class="vol">
-      <div class="vol-ic" onclick="toggleMute()"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></div>
-      <input type="range" class="vol-s" id="volSlider" min="0" max="1" step="0.01">
+  
+  <div class="pb-r" style="display:flex; gap:12px; align-items:center;">
+    <div class="pb-time-group" style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; font-size:11px; font-weight:600; color:var(--tx3); font-variant-numeric:tabular-nums;">
+       <span id="timeCur" style="color:#fff">0:00</span>
+       <span id="timeDur">0:00</span>
     </div>
   </div>
 </div>
@@ -1343,7 +1420,7 @@ function showSkelTracks(container, count = 6, isGrid = false) {
   }
 }
 
-// ========== THEME (FIX 3: Reset Accent) ==========
+// ========== THEME ==========
 const THEMES = [
   {id:'galaxy',name:'Thiên hà',c1:'#050220',c2:'#a78bfa'}, {id:'midnight',name:'Đêm',c1:'#0f1730',c2:'#60a5fa'},
   {id:'aurora',name:'Cực quang',c1:'#0a1a20',c2:'#22d3ee'}, {id:'forest',name:'Rừng',c1:'#0a1a12',c2:'#4ade80'},
@@ -1355,7 +1432,6 @@ function applyTheme(t){
   S.theme = t;
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('nv_theme', t);
-  // FIX 3: Reset inline style của Dynamic Theme để không bị dính màu ảnh bìa cũ
   document.documentElement.style.removeProperty('--accent');
   document.documentElement.style.removeProperty('--accent-soft');
   document.documentElement.style.removeProperty('--accent-2');
@@ -1620,7 +1696,11 @@ function removeFromQueue(id){ S.queue = S.queue.filter(q=>q.id!==id); save(); re
 const SPEED_KEY = 'nv_speed';
 function initSpeed(){ const s = parseFloat(localStorage.getItem(SPEED_KEY)||'1'); audio.playbackRate = s; updateSpeedUI(s); }
 function setSpeed(s){ localStorage.setItem(SPEED_KEY, s); setPitch(_currentPitch); updateSpeedUI(s); $('speedPop').classList.remove('on'); toast('⚡ Tốc độ: '+s+'x','ok'); }
-function updateSpeedUI(s){ const v = $('speedVal'); if(v) v.textContent = s+'x'; document.querySelectorAll('.speed-item').forEach(el => el.classList.toggle('on', parseFloat(el.dataset.speed)===s)); }
+function updateSpeedUI(s){ 
+  const v = $('speedVal'); if(v) v.textContent = s+'x'; 
+  const tv = $('topSpeedVal'); if(tv) tv.textContent = s+'x'; // Sync Top Bar
+  document.querySelectorAll('.speed-item').forEach(el => el.classList.toggle('on', parseFloat(el.dataset.speed)===s)); 
+}
 function toggleSpeedPop(e){ e?.stopPropagation(); $('speedPop').classList.toggle('on'); $('eqPanel').classList.remove('on'); $('pitchPop').classList.remove('on'); $('sleepPop').classList.remove('on'); }
 function togglePitchPop(e) { e?.stopPropagation(); $('pitchPop').classList.toggle('on'); $('speedPop').classList.remove('on'); $('eqPanel').classList.remove('on'); $('sleepPop').classList.remove('on'); }
 function setPitch(val) {
@@ -1649,7 +1729,7 @@ function setSleepTimer(minutes) {
   }, minutes * 60 * 1000);
 }
 
-// ========== EQ + BOOST + 8D AUDIO (FIX 2: Volume 8D) ==========
+// ========== EQ + BOOST + 8D AUDIO ==========
 let audioCtx=null, bassFilter=null, midFilter=null, trebleFilter=null, audioSource=null, gainNode=null, analyserNode=null, pannerNode=null;
 let _is8DOn = false, _8DInterval = null;
 const EQ_KEY='nv_eq', BOOST_KEY='nv_boost', AUTO_EQ_KEY='nv_eq_auto';
@@ -1667,7 +1747,6 @@ function ensureAudioGraph(){
       pannerNode = audioCtx.createPanner();
       pannerNode.panningModel = 'HRTF';
       pannerNode.distanceModel = 'inverse';
-      // FIX 2: Tăng refDistance và giảm rolloffFactor để âm lượng không bị tụt khi bật 8D
       pannerNode.refDistance = 20;
       pannerNode.maxDistance = 10000;
       pannerNode.rolloffFactor = 0.5;
@@ -1691,8 +1770,11 @@ function toggle8D(e) {
   if(!ensureAudioGraph()) return;
   _is8DOn = !_is8DOn;
   const btn = $('btn8d');
+  const topBtn = $('topBtn8d');
+  
   if(_is8DOn) {
     if(btn) btn.classList.add('on');
+    if(topBtn) topBtn.classList.add('active');
     toast('🎧 Đã bật 8D Audio (Đeo tai nghe để rõ nhất)', 'ok');
     if(audioCtx.state === 'suspended') audioCtx.resume();
     let angle = 0;
@@ -1707,6 +1789,7 @@ function toggle8D(e) {
     }, 50);
   } else {
     if(btn) btn.classList.remove('on');
+    if(topBtn) topBtn.classList.remove('active');
     toast('Tắt 8D Audio', '');
     if(_8DInterval) { clearInterval(_8DInterval); _8DInterval = null; }
     if(pannerNode && audioCtx) {
@@ -1747,7 +1830,7 @@ document.addEventListener('click', e => { if(!e.target.closest('.speed-pop,.eq-p
 document.addEventListener('touchstart', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); }, {passive:true});
 document.addEventListener('click', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); }, {passive:true});
 
-// ========== OFFLINE CACHE (FIX 1: SoundCloud HLS) ==========
+// ========== OFFLINE CACHE ==========
 const DB_NAME = 'nova_audio_cache';
 let _db;
 function initDB() { return new Promise((resolve, reject) => { const req = indexedDB.open(DB_NAME, 1); req.onupgradeneeded = e => { e.target.result.createObjectStore('tracks'); }; req.onsuccess = e => { _db = e.target.result; resolve(_db); }; req.onerror = e => reject(e.target.error); }); }
@@ -1759,7 +1842,6 @@ async function cacheAudio(vid, url, el) {
     if (existing) return toast('Bài này đã lưu Offline rồi', 'ok');
     toast('⏳ Đang tải về máy...', '');
     const resp = await fetch(url);
-    // FIX 1: Chặn lưu Offline với SoundCloud (HLS) để không crash
     if (!resp.ok) {
       if (resp.status === 400 || resp.status === 502) {
         toast('❌ Bài SoundCloud (HLS) không hỗ trợ Offline', 'err');
@@ -2047,7 +2129,7 @@ function closeAudioMenu() {
   document.getElementById('audioMenu').classList.remove('on');
 }
 
-console.log(`[Nova V2.2] Ready · Premium · Audio Menu Bottom Sheet · 3 Fixes`);
+console.log(`[Nova V3] Ready · Premium · Top Bar & Floating Player`);
 </script>
 </body>
-</html>
+        </html>
