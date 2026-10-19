@@ -1343,7 +1343,7 @@ function showSkelTracks(container, count = 6, isGrid = false) {
   }
 }
 
-// ========== THEME ==========
+// ========== THEME (FIX 3: Reset Accent) ==========
 const THEMES = [
   {id:'galaxy',name:'Thiên hà',c1:'#050220',c2:'#a78bfa'}, {id:'midnight',name:'Đêm',c1:'#0f1730',c2:'#60a5fa'},
   {id:'aurora',name:'Cực quang',c1:'#0a1a20',c2:'#22d3ee'}, {id:'forest',name:'Rừng',c1:'#0a1a12',c2:'#4ade80'},
@@ -1355,6 +1355,10 @@ function applyTheme(t){
   S.theme = t;
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('nv_theme', t);
+  // FIX 3: Reset inline style của Dynamic Theme để không bị dính màu ảnh bìa cũ
+  document.documentElement.style.removeProperty('--accent');
+  document.documentElement.style.removeProperty('--accent-soft');
+  document.documentElement.style.removeProperty('--accent-2');
 }
 applyTheme(S.theme);
 function openThemeModal(){
@@ -1645,7 +1649,7 @@ function setSleepTimer(minutes) {
   }, minutes * 60 * 1000);
 }
 
-// ========== EQ + BOOST + 8D AUDIO (WEB AUDIO API) ==========
+// ========== EQ + BOOST + 8D AUDIO (FIX 2: Volume 8D) ==========
 let audioCtx=null, bassFilter=null, midFilter=null, trebleFilter=null, audioSource=null, gainNode=null, analyserNode=null, pannerNode=null;
 let _is8DOn = false, _8DInterval = null;
 const EQ_KEY='nv_eq', BOOST_KEY='nv_boost', AUTO_EQ_KEY='nv_eq_auto';
@@ -1663,9 +1667,10 @@ function ensureAudioGraph(){
       pannerNode = audioCtx.createPanner();
       pannerNode.panningModel = 'HRTF';
       pannerNode.distanceModel = 'inverse';
-      pannerNode.refDistance = 1;
+      // FIX 2: Tăng refDistance và giảm rolloffFactor để âm lượng không bị tụt khi bật 8D
+      pannerNode.refDistance = 20;
       pannerNode.maxDistance = 10000;
-      pannerNode.rolloffFactor = 1;
+      pannerNode.rolloffFactor = 0.5;
       pannerNode.coneInnerAngle = 360;
       pannerNode.coneOuterAngle = 0;
       pannerNode.coneOuterGain = 0;
@@ -1742,7 +1747,7 @@ document.addEventListener('click', e => { if(!e.target.closest('.speed-pop,.eq-p
 document.addEventListener('touchstart', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); }, {passive:true});
 document.addEventListener('click', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); }, {passive:true});
 
-// ========== OFFLINE CACHE (INDEXEDDB) ==========
+// ========== OFFLINE CACHE (FIX 1: SoundCloud HLS) ==========
 const DB_NAME = 'nova_audio_cache';
 let _db;
 function initDB() { return new Promise((resolve, reject) => { const req = indexedDB.open(DB_NAME, 1); req.onupgradeneeded = e => { e.target.result.createObjectStore('tracks'); }; req.onsuccess = e => { _db = e.target.result; resolve(_db); }; req.onerror = e => reject(e.target.error); }); }
@@ -1754,7 +1759,14 @@ async function cacheAudio(vid, url, el) {
     if (existing) return toast('Bài này đã lưu Offline rồi', 'ok');
     toast('⏳ Đang tải về máy...', '');
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error();
+    // FIX 1: Chặn lưu Offline với SoundCloud (HLS) để không crash
+    if (!resp.ok) {
+      if (resp.status === 400 || resp.status === 502) {
+        toast('❌ Bài SoundCloud (HLS) không hỗ trợ Offline', 'err');
+        return;
+      }
+      throw new Error();
+    }
     const blob = await resp.blob();
     _db.transaction('tracks', 'readwrite').objectStore('tracks').put(blob, vid);
     toast('📥 Đã lưu Offline thành công!', 'ok');
@@ -2028,7 +2040,6 @@ setTimeout(()=>toast('💡 Click bài hát để PHÁT · Phím D để đổi b
 // ========== AUDIO MENU BOTTOM SHEET ==========
 function openAudioMenu() {
   document.getElementById('audioMenu').classList.add('on');
-  // Cập nhật trạng thái nút 8D nếu đang bật
   const btn8d = document.getElementById('amBtn8d');
   if (btn8d) btn8d.classList.toggle('active', _is8DOn);
 }
@@ -2036,7 +2047,7 @@ function closeAudioMenu() {
   document.getElementById('audioMenu').classList.remove('on');
 }
 
-console.log(`[Nova V2.2] Ready · Premium · Audio Menu Bottom Sheet`);
+console.log(`[Nova V2.2] Ready · Premium · Audio Menu Bottom Sheet · 3 Fixes`);
 </script>
 </body>
-  </html>
+</html>
