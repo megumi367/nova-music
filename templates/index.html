@@ -779,7 +779,7 @@ html,body{font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-se
 </style>
 <body>
 
-<!-- TOP FX BAR (MỚI) -->
+<!-- TOP FX BAR -->
 <div class="top-fx-bar">
   <button class="fx-btn" onclick="toggleFavCurrent()" id="topBtnFav"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.5-8-11.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5C20 15.5 12 21 12 21z"/></svg></button>
   <button class="fx-btn text-btn" onclick="toggleSpeedPop(event)"><span id="topSpeedVal">1x</span></button>
@@ -2103,7 +2103,17 @@ function saveLyrics() { const text = $('lyricsInput').value.trim(); if(!text) re
 // ========== SERVICE WORKER & INIT ==========
 if('serviceWorker' in navigator){ let refreshing = false; navigator.serviceWorker.addEventListener('controllerchange', () => { if(refreshing) return; refreshing = true; toast('🔄 Đã cập nhật phiên bản mới — tải lại...','ok'); setTimeout(()=>location.reload(), 800); }); navigator.serviceWorker.register('/sw.js').then(reg => { reg.addEventListener('updatefound', () => { const nw = reg.installing; if(!nw) return; nw.addEventListener('statechange', () => { if(nw.state==='installed' && navigator.serviceWorker.controller) nw.postMessage('SKIP_WAITING'); }); }); }).catch(()=>{}); }
 
-window.addEventListener('load', () => { setTimeout(()=>{ const ls = $('loadingScreen'); if(ls){ ls.classList.add('hide'); setTimeout(()=>ls.remove(), 900); } }, 1600); });
+// ========== FIX LOADING SCREEN ==========
+function hideLoadingScreen() {
+    const ls = document.getElementById('loadingScreen');
+    if (ls && !ls.classList.contains('hide')) {
+        ls.classList.add('hide');
+        setTimeout(() => ls.remove(), 900);
+    }
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(hideLoadingScreen, 1500));
+setTimeout(hideLoadingScreen, 3000); // Fallback cứng
+
 document.addEventListener('visibilitychange', () => document.body.classList.toggle('tab-hidden', document.hidden));
 detectStandalone();
 
@@ -2129,7 +2139,7 @@ function closeAudioMenu() {
   document.getElementById('audioMenu').classList.remove('on');
 }
 
-console.log(`[Nova V3] Ready · Premium · Top Bar & Floating Player`);
+console.log(`[Nova V3.1] Ready · Fixed Loading · Premium UI`);
 </script>
 </body>
-</html>
+  </html>
