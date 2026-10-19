@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, Response, stream_with_context, send_f
 from flask_compress import Compress
 import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, io
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from collections import defaultdict, deque
+from functools import wraps
 
 try:
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -10,7 +12,11 @@ except ImportError:
     HAS_PIL = False
 
 app = Flask(__name__)
-app.config['JSON_AS_ASCII'] = False
+# Flask 2.3+ dùng app.json.ensure_ascii, cũ hơn dùng config
+try:
+    app.json.ensure_ascii = False
+except Exception:
+    app.config['JSON_AS_ASCII'] = False
 Compress(app)
 
 stream_cache = {}
@@ -20,6 +26,63 @@ DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 _exec = ThreadPoolExecutor(max_workers=8)
 
+# Version dùng cho auto-update (tăng mỗi lần restart)
+_APP_VERSION = int(time.time())
+
+# ========== RATE LIMIT ==========
+_rate_store = defaultdict(lambda: deque(maxlen=200))
+
+def rate_limit(max_per_min=60):
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*a, **kw):
+            ip = (request.headers.get('X-Forwarded-For') or request.remote_addr or 'unknown').split(',')[0].strip()
+            now = time.time()
+            q = _rate_store[ip]
+            while q and now - q[0] > 60:
+                q.popleft()
+            if len(q) >= max_per_min:
+                return jsonify({'error': 'Quá nhiều yêu cầu. Thử lại sau 1 phút.'}), 429
+            q.append(now)
+            return fn(*a, **kw)
+        return wrapper
+    return deco
+
+# ========== SSRF WHITELIST ==========
+PROXY_ALLOWED_HOSTS = {
+    'sndcdn.com', 'soundcloud.com',
+    'mzstatic.com', 'ytimg.com',
+    'gstatic.com', 'googleusercontent.com',
+    'akamaized.net', 'cloudfront.net',
+    'scdn.co',
+}
+
+def _is_proxy_allowed(url):
+    try:
+        p = urllib.parse.urlparse(url)
+        if p.scheme not in ('http', 'https'):
+            return False
+        host = (p.hostname or '').lower()
+        if not host:
+            return False
+        for h in PROXY_ALLOWED_HOSTS:
+            if host == h or host.endswith('.' + h):
+                return True
+        return False
+    except Exception:
+        return False
+
+# ========== MIME MAP ==========
+MIME_MAP = {
+    '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'audio/mp4',
+    '.webm': 'audio/webm', '.opus': 'audio/opus', '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav', '.flac': 'audio/flac',
+}
+
+# ========== ICON CACHE ==========
+_ICON_CACHE = {}
+
+# ========== COOKIES ==========
 _cookies_env = os.environ.get('NOVA_COOKIES') or None
 COOKIES_FILE = None
 if _cookies_env:
@@ -37,10 +100,10 @@ try:
     FFMPEG_OK = True
 except: pass
 
-# ========== AUTO CLEANUP DOWNLOADS ==========
+# ========== CLEANUP ==========
 def cleanup_downloads_loop():
     while True:
-        time.sleep(3600) # Chạy mỗi 1 tiếng
+        time.sleep(3600)  # mỗi 1 tiếng
         now = time.time()
         try:
             if os.path.exists(DOWNLOAD_DIR):
@@ -52,11 +115,22 @@ def cleanup_downloads_loop():
                 if tasks[tid].get('status') in ('done', 'error'):
                     if now - tasks[tid].get('_ts', now) > 7200:
                         del tasks[tid]
+            # Rate limit store cleanup
+            for ip in list(_rate_store.keys()):
+                if not _rate_store[ip] or now - _rate_store[ip][-1] > 600:
+                    del _rate_store[ip]
+            # Party rooms cleanup (safety net)
+            for code in list(PARTY_ROOMS.keys()):
+                try:
+                    clean_room(code)
+                except Exception:
+                    pass
         except Exception as e:
             print("Cleanup error:", e)
 
 threading.Thread(target=cleanup_downloads_loop, daemon=True).start()
 
+# ========== CORE ==========
 def base_opts():
     o = {
         'quiet': True, 'no_warnings': True, 'nocheckcertificate': True,
@@ -103,7 +177,6 @@ def extract_soundcloud(vid, timeout=25):
 
 def extract_audio(vid, timeout=30):
     info = extract_soundcloud(vid, timeout=timeout)
-
     u = info.get('url')
     if not u:
         fmts = info.get('formats') or []
@@ -115,11 +188,9 @@ def extract_audio(vid, timeout=30):
                 break
     if not u:
         raise Exception("Không có URL stream")
-
     proto = (info.get('protocol') or '').lower()
     is_hls = 'm3u8' in u.lower() or 'm3u8' in proto
     thumb = info.get('thumbnail') or (info.get('thumbnails') or [{}])[-1].get('url')
-
     return {
         'title': info.get('title'),
         'thumbnail': thumb,
@@ -146,9 +217,9 @@ def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
 def b64d(s): return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
 
 def build_sc_url(e):
-    for k in ('webpage_url','permalink_url','original_url'):
+    for k in ('webpage_url', 'permalink_url', 'original_url'):
         u = e.get(k) or ''
-        if isinstance(u,str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u:
+        if isinstance(u, str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u:
             return u
     u = urllib.parse.unquote(str(e.get('url') or ''))
     m = re.search(r'soundcloud[:\/]tracks[:\/](\d+)', u)
@@ -160,7 +231,7 @@ def build_sc_url(e):
 def sc_search(q, limit=20):
     def _do():
         o = base_opts()
-        o.update({'extract_flat': True, 'skip_download': True, 'playlistend': limit})
+        o.update({'extract_flat': True, 'skip_download': True})
         with yt_dlp.YoutubeDL(o) as y:
             return y.extract_info(f"scsearch{limit}:{q}", download=False)
     info = run_to(_do, timeout=25)
@@ -183,18 +254,27 @@ def detect(url):
     if 'soundcloud.com' in url: return 'soundcloud'
     return None
 
+# ========== ROUTES: CORE ==========
 @app.route('/api/ping')
 def ping():
     return 'pong', 200
+
+@app.route('/api/version')
+def api_version():
+    return jsonify({'v': _APP_VERSION}), 200, {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+    }
 
 @app.route('/api/proxy_image')
 def proxy_image():
     url = request.args.get('url')
     if not url: return "Missing URL", 400
+    if not _is_proxy_allowed(url):
+        return "Domain không được phép", 403
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         return Response(r.content, mimetype=r.headers.get('Content-Type', 'image/jpeg'), headers={'Cache-Control': 'public, max-age=86400'})
-    except:
+    except Exception:
         return "Error", 502
 
 @app.route('/')
@@ -205,6 +285,7 @@ def index():
     }
 
 @app.route('/api/sc_search')
+@rate_limit(30)
 def sc_search_route():
     q = request.args.get('q', '').strip()
     if not q: return jsonify([])
@@ -225,10 +306,11 @@ def suggest():
             params={'client': 'firefox', 'q': q}, timeout=3
         )
         return jsonify(r.json()[1][:8])
-    except:
+    except Exception:
         return jsonify([])
 
 @app.route('/api/play', methods=['POST'])
+@rate_limit(60)
 def play():
     try:
         b = request.json or {}
@@ -252,6 +334,7 @@ def play():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/parse', methods=['POST'])
+@rate_limit(20)
 def parse():
     try:
         url = (request.json.get('url') or '').strip()
@@ -279,9 +362,10 @@ def lyrics():
         if r.status_code == 200:
             return jsonify(r.json())
         return jsonify({'error': 'Không có lời'}), 404
-    except:
+    except Exception:
         return jsonify({'error': 'Không có lời'}), 404
 
+# ========== HLS PROXY ==========
 def rewrite_m3u8(c, base):
     out = []
     for line in c.split('\n'):
@@ -304,9 +388,11 @@ def hls_proxy():
     if not token: return "Missing", 400
     try:
         url = b64d(token)
-    except:
+    except Exception:
         return "Bad token", 400
     if not url.startswith('http'): return "Bad URL", 400
+    if not _is_proxy_allowed(url):
+        return "Domain không được phép", 403
     headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/'}
     try:
         r = requests.get(url, headers=headers, stream=True, timeout=20)
@@ -317,7 +403,7 @@ def hls_proxy():
     if is_pl:
         try:
             c = r.text
-        except:
+        except Exception:
             return "Read error", 502
         return Response(
             rewrite_m3u8(c, url),
@@ -329,17 +415,19 @@ def hls_proxy():
         try:
             for chunk in r.iter_content(16384):
                 if chunk: yield chunk
-        except: pass
+        except Exception:
+            pass
         finally:
             try: r.close()
-            except: pass
+            except Exception: pass
     return Response(
         stream_with_context(gen()),
         mimetype=ct or 'audio/aac',
         headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
     )
 
-@app.route('/stream/<path:vid>')
+# ========== STREAM (hỗ trợ HEAD) ==========
+@app.route('/stream/<path:vid>', methods=['GET', 'HEAD'])
 def stream(vid):
     try:
         vid = norm_sc(vid)
@@ -349,40 +437,44 @@ def stream(vid):
         return f"Lỗi: {e}", 500
     if info.get('is_hls'):
         return "Dùng /hls_proxy", 400
-    
+
     hdrs = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://soundcloud.com/',
     }
     if info.get('headers'):
         hdrs.update(info['headers'])
-        
+
     rng = request.headers.get('Range', '')
     if rng:
         hdrs['Range'] = rng
-        
+
     try:
         req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
     except Exception as e:
         return f"Stream error: {e}", 502
-        
+
     h = {'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'}
     for k in ('Content-Type', 'Content-Length', 'Content-Range'):
         if k in req.headers:
             h[k] = req.headers[k]
-            
+
     if 'Content-Type' not in h:
         ext = info['url'].split('?')[0].split('.')[-1].lower()
-        h['Content-Type'] = {
-            'm4a': 'audio/mp4', 'mp4': 'video/mp4',
-            'webm': 'video/webm', 'mp3': 'audio/mpeg'
-        }.get(ext, 'audio/mp4')
-        
+        h['Content-Type'] = MIME_MAP.get('.' + ext, 'audio/mp4')
+
+    # HEAD: chỉ trả headers, đóng upstream
+    if request.method == 'HEAD':
+        try: req.close()
+        except Exception: pass
+        return Response(status=req.status_code, headers=h)
+
     return Response(
         stream_with_context(req.iter_content(65536)),
         status=req.status_code, headers=h
     )
 
+# ========== DOWNLOAD ==========
 def dl_task(tid, vid):
     def hook(d):
         if d['status'] == 'downloading':
@@ -395,13 +487,13 @@ def dl_task(tid, vid):
         o['progress_hooks'] = [hook]
         o['http_headers'] = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/'}
         url = norm_sc(vid)
-        
+
         if FFMPEG_OK:
             o['format'] = 'bestaudio/best'
             o['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
         else:
             o['format'] = 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best'
-            
+
         with yt_dlp.YoutubeDL(o) as y:
             info = y.extract_info(url, download=True)
             fn = y.prepare_filename(info)
@@ -413,6 +505,7 @@ def dl_task(tid, vid):
         tasks[tid].update({'status': 'error', 'error': str(e)})
 
 @app.route('/api/download', methods=['POST'])
+@rate_limit(10)
 def download():
     b = request.json
     vid = b.get('video_id')
@@ -423,19 +516,20 @@ def download():
     return jsonify({'task_id': tid})
 
 @app.route('/api/download_status/<tid>')
-def dl_status(tid): return jsonify(tasks.get(tid, {'status': 'not_found'}))
+def dl_status(tid):
+    return jsonify(tasks.get(tid, {'status': 'not_found'}))
 
 @app.route('/api/download_file/<tid>')
 def dl_file(tid):
     t = tasks.get(tid)
     if not t or t.get('status') != 'done': return "Chưa xong", 404
     if not os.path.exists(t['file']): return "File đã xoá", 404
-    ext = os.path.splitext(t['file'])[1]
+    ext = os.path.splitext(t['file'])[1].lower()
     safe = re.sub(r'[^\w\s\-\.]', '', t['title'])[:80].strip() or 'audio'
-    mime = 'audio/mpeg' if ext == '.mp3' else 'audio/mp4'
+    mime = MIME_MAP.get(ext, 'application/octet-stream')
     return send_file(t['file'], as_attachment=True, download_name=safe + ext, mimetype=mime)
 
-# ============ PARTY ============
+# ========== PARTY ==========
 def clean_room(code):
     room = PARTY_ROOMS.get(code)
     if not room: return
@@ -445,6 +539,13 @@ def clean_room(code):
             del room['members'][sid]
     if not room['members']:
         del PARTY_ROOMS[code]
+        return
+    # Promote new host nếu host gốc đã rời
+    host_sid = room.get('host_sid')
+    if host_sid not in room['members']:
+        new_sid = next(iter(room['members']))
+        room['host_sid'] = new_sid
+        room['host'] = room['members'][new_sid]['name']
 
 @app.route('/api/party/create', methods=['POST', 'GET'])
 def party_create():
@@ -456,9 +557,13 @@ def party_create():
             if code not in PARTY_ROOMS: break
         sid = uuid.uuid4().hex[:10]
         PARTY_ROOMS[code] = {
-            'queue': [], 'members': {sid: {'name': user, 'last_seen': time.time(), 'sid': sid}},
+            'queue': [],
+            'members': {sid: {'name': user, 'last_seen': time.time(), 'sid': sid}},
             'playing': None, 'position': 0, 'is_playing': False,
-            'chat': [], 'host': user, 'created': time.time(),
+            'chat': [],
+            'host': user,
+            'host_sid': sid,
+            'created': time.time(),
         }
         return jsonify({'code': code, 'sid': sid, 'is_host': True})
     except Exception as e:
@@ -472,9 +577,15 @@ def party_join():
         user = (d.get('user') or 'Khách').strip()[:20]
         if not code: return jsonify({'error': 'Thiếu mã phòng'}), 400
         if code not in PARTY_ROOMS: return jsonify({'error': 'Không tìm thấy phòng'}), 404
+        room = PARTY_ROOMS[code]
         sid = uuid.uuid4().hex[:10]
-        PARTY_ROOMS[code]['members'][sid] = {'name': user, 'last_seen': time.time(), 'sid': sid}
-        return jsonify({'code': code, 'sid': sid, 'is_host': user == PARTY_ROOMS[code].get('host')})
+        is_host = False
+        # Host reclaim nếu host gốc offline và tên trùng
+        if room.get('host_sid') not in room['members'] and user == room.get('host'):
+            room['host_sid'] = sid
+            is_host = True
+        room['members'][sid] = {'name': user, 'last_seen': time.time(), 'sid': sid}
+        return jsonify({'code': code, 'sid': sid, 'is_host': is_host})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -497,6 +608,7 @@ def party_state():
             'playing': room['playing'], 'position': room['position'],
             'is_playing': room['is_playing'], 'chat': room['chat'][-30:],
             'host': room.get('host'),
+            'host_sid': room.get('host_sid'),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -511,7 +623,7 @@ def party_leave():
             del PARTY_ROOMS[code]['members'][sid]
             clean_room(code)
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': True})
 
 @app.route('/api/party/play', methods=['POST'])
@@ -524,7 +636,7 @@ def party_play():
             PARTY_ROOMS[code]['position'] = 0
             PARTY_ROOMS[code]['is_playing'] = True
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': False}), 500
 
 @app.route('/api/party/sync', methods=['POST'])
@@ -536,7 +648,7 @@ def party_sync():
             PARTY_ROOMS[code]['position'] = d.get('position', 0)
             PARTY_ROOMS[code]['is_playing'] = d.get('is_playing', True)
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': False}), 500
 
 @app.route('/api/party/add', methods=['POST'])
@@ -548,7 +660,7 @@ def party_add():
         if code in PARTY_ROOMS and t:
             PARTY_ROOMS[code]['queue'].append(t)
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': False}), 500
 
 @app.route('/api/party/remove', methods=['POST'])
@@ -560,7 +672,7 @@ def party_remove():
         if code in PARTY_ROOMS and isinstance(i, int) and 0 <= i < len(PARTY_ROOMS[code]['queue']):
             PARTY_ROOMS[code]['queue'].pop(i)
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': False}), 500
 
 @app.route('/api/party/chat', methods=['POST'])
@@ -575,10 +687,10 @@ def party_chat():
             if len(PARTY_ROOMS[code]['chat']) > 100:
                 PARTY_ROOMS[code]['chat'] = PARTY_ROOMS[code]['chat'][-100:]
         return jsonify({'ok': True})
-    except:
+    except Exception:
         return jsonify({'ok': False}), 500
 
-# ============ PWA ICON GENERATOR ============
+# ========== PWA ICON GENERATOR ==========
 def _render_nova_icon(size):
     if not HAS_PIL:
         return None
@@ -671,7 +783,6 @@ def _render_nova_icon(size):
         img.save(buf, format='PNG', optimize=True)
         return buf.getvalue()
     except Exception as e:
-        import traceback
         traceback.print_exc()
         print(f"Lỗi vẽ icon: {e}")
         return None
@@ -680,7 +791,11 @@ def _render_nova_icon(size):
 def pwa_icon_png_v3(size):
     if size not in (96, 128, 144, 152, 180, 192, 256, 384, 512):
         return "Bad size", 404
-    data = _render_nova_icon(size)
+    if size in _ICON_CACHE:
+        data = _ICON_CACHE[size]
+    else:
+        data = _render_nova_icon(size)
+        _ICON_CACHE[size] = data
     if data is None:
         return pwa_icon_svg()
     return Response(data, mimetype='image/png', headers={
@@ -741,7 +856,7 @@ def manifest():
         'name': 'Nova Music Universe',
         'short_name': 'Nova',
         'description': 'Nghe nhạc SoundCloud Premium',
-        'start_url': 'https://nova-music-hxyp.onrender.com/?source=pwa',
+        'start_url': '/?source=pwa',
         'scope': '/',
         'display': 'standalone',
         'display_override': ['window-controls-overlay', 'standalone', 'minimal-ui'],
@@ -785,7 +900,7 @@ def assetlinks():
 
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v20';
+    s = """const C='nova-v21';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
   e.waitUntil(
@@ -819,9 +934,11 @@ self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting(
 def debug():
     import yt_dlp as y
     return jsonify({
+        'version': _APP_VERSION,
         'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
         'cookies': bool(COOKIES_FILE),
         'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
+        'tasks': len(tasks), 'icon_cache': len(_ICON_CACHE),
         'pillow': HAS_PIL,
     })
 
@@ -831,5 +948,6 @@ if __name__ == '__main__':
     print(f"   ffmpeg: {'✅' if FFMPEG_OK else '⚠️'}")
     print(f"   cookies: {'✅' if COOKIES_FILE else '❌'}")
     print(f"   pillow: {'✅' if HAS_PIL else '❌'}")
+    print(f"   version: {_APP_VERSION}")
     port = int(os.environ.get('PORT', 8080))
     app.run(debug=False, port=port, threaded=True, host='0.0.0.0')
