@@ -28,7 +28,6 @@ _exec = ThreadPoolExecutor(max_workers=8)
 _APP_VERSION = int(time.time())
 _SECRET = os.environ.get('NOVA_SECRET') or 'nova-hls-secret-v1-stable'
 
-# ========== RATE LIMIT ==========
 _rate_store = defaultdict(lambda: deque(maxlen=200))
 
 def rate_limit(max_per_min=60):
@@ -47,12 +46,8 @@ def rate_limit(max_per_min=60):
         return wrapper
     return deco
 
-# ========== TOKEN SIGNING (HMAC) ==========
-def b64e(s):
-    return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
-
-def b64d(s):
-    return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
+def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
+def b64d(s): return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
 
 def sign_token(url):
     raw = b64e(url)
@@ -60,57 +55,44 @@ def sign_token(url):
     return raw + '.' + sig
 
 def verify_token(token):
-    if not token or '.' not in token:
-        return None
+    if not token or '.' not in token: return None
     try:
         raw, sig = token.rsplit('.', 1)
         expected = hmac.new(_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:16]
-        if not hmac.compare_digest(sig, expected):
-            return None
+        if not hmac.compare_digest(sig, expected): return None
         return b64d(raw)
-    except Exception:
-        return None
+    except Exception: return None
 
-# ========== SSRF WHITELIST ==========
 PROXY_ALLOWED_HOSTS = {
-    'sndcdn.com', 'soundcloud.com', 'soundcloud.cloud',
-    'mzstatic.com', 'ytimg.com', 'gstatic.com', 'googleusercontent.com',
-    'akamaized.net', 'cloudfront.net', 'fastly.net', 'scdn.co', 'twimg.com',
+    'sndcdn.com', 'soundcloud.com', 'soundcloud.cloud', 'mzstatic.com', 'ytimg.com', 
+    'gstatic.com', 'googleusercontent.com', 'akamaized.net', 'cloudfront.net', 'fastly.net', 'scdn.co', 'twimg.com'
 }
 
 def _is_proxy_allowed(url):
     try:
         p = urllib.parse.urlparse(url)
-        if p.scheme not in ('http', 'https'):
-            return False
+        if p.scheme not in ('http', 'https'): return False
         host = (p.hostname or '').lower()
         if not host: return False
         for h in PROXY_ALLOWED_HOSTS:
-            if host == h or host.endswith('.' + h):
-                return True
+            if host == h or host.endswith('.' + h): return True
         return False
-    except Exception:
-        return False
+    except Exception: return False
 
 MIME_MAP = {
     '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'audio/mp4',
     '.webm': 'audio/webm', '.opus': 'audio/opus', '.ogg': 'audio/ogg',
     '.wav': 'audio/wav', '.flac': 'audio/flac',
 }
-
 _ICON_CACHE = {}
 
-# ========== COOKIES & FFMPEG ==========
 _cookies_env = os.environ.get('NOVA_COOKIES') or None
 COOKIES_FILE = None
 if _cookies_env:
-    if os.path.exists(_cookies_env):
-        COOKIES_FILE = _cookies_env
+    if os.path.exists(_cookies_env): COOKIES_FILE = _cookies_env
     else:
         _tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
-        _tmp.write(_cookies_env)
-        _tmp.close()
-        COOKIES_FILE = _tmp.name
+        _tmp.write(_cookies_env); _tmp.close(); COOKIES_FILE = _tmp.name
 
 FFMPEG_OK = False
 try:
@@ -118,7 +100,6 @@ try:
     FFMPEG_OK = True
 except: pass
 
-# ========== CLEANUP ==========
 def cleanup_downloads_loop():
     while True:
         time.sleep(3600)
@@ -137,29 +118,23 @@ def cleanup_downloads_loop():
             for code in list(PARTY_ROOMS.keys()):
                 try: clean_room(code)
                 except Exception: pass
-        except Exception as e:
-            print("Cleanup error:", e)
+        except Exception as e: print("Cleanup error:", e)
 
 threading.Thread(target=cleanup_downloads_loop, daemon=True).start()
 
-# ========== CORE EXTRACT ==========
 def base_opts():
     o = {
         'quiet': True, 'no_warnings': True, 'nocheckcertificate': True,
         'socket_timeout': 20, 'retries': 3, 'fragment_retries': 3,
-        'noplaylist': True, 'extractor_retries': 3,
-        'age_limit': None, 'geo_bypass': True,
+        'noplaylist': True, 'extractor_retries': 3, 'age_limit': None, 'geo_bypass': True,
     }
-    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-        o['cookiefile'] = COOKIES_FILE
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE): o['cookiefile'] = COOKIES_FILE
     return o
 
 def run_to(fn, timeout=30, *args):
     f = _exec.submit(fn, *args)
-    try:
-        return f.result(timeout=timeout)
-    except FutureTimeout:
-        raise Exception(f"Timeout {timeout}s — chạy: pip install -U yt-dlp")
+    try: return f.result(timeout=timeout)
+    except FutureTimeout: raise Exception(f"Timeout {timeout}s — chạy: pip install -U yt-dlp")
 
 def norm_sc(vid):
     vid = str(vid).strip()
@@ -178,12 +153,10 @@ def extract_soundcloud(vid, timeout=25):
         o = base_opts()
         o['format'] = 'bestaudio/best'
         o['http_headers'] = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-            'Referer': 'https://soundcloud.com/',
-            'Origin': 'https://soundcloud.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://soundcloud.com/', 'Origin': 'https://soundcloud.com',
         }
-        with yt_dlp.YoutubeDL(o) as y:
-            return y.extract_info(vid, download=False)
+        with yt_dlp.YoutubeDL(o) as y: return y.extract_info(vid, download=False)
     return run_to(_do, timeout=timeout)
 
 def extract_audio(vid, timeout=30):
@@ -220,7 +193,7 @@ def extract_audio(vid, timeout=30):
     thumb = info.get('thumbnail') or (info.get('thumbnails') or [{}])[-1].get('url')
 
     headers = dict(chosen.get('http_headers') or info.get('http_headers') or {})
-    headers.setdefault('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    headers.setdefault('User-Agent', 'Mozilla/5.0')
     headers.setdefault('Referer', 'https://soundcloud.com/')
 
     return {
@@ -241,8 +214,7 @@ def get_cached(vid, force=False):
 def build_sc_url(e):
     for k in ('webpage_url', 'permalink_url', 'original_url'):
         u = e.get(k) or ''
-        if isinstance(u, str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u:
-            return u
+        if isinstance(u, str) and u.startswith('http') and 'api.soundcloud.com' not in u and 'soundcloud.com' in u: return u
     u = urllib.parse.unquote(str(e.get('url') or ''))
     m = re.search(r'soundcloud[:\/]tracks[:\/](\d+)', u)
     if m: return f"https://soundcloud.com/tracks/{m.group(1)}"
@@ -254,8 +226,7 @@ def sc_search(q, limit=40):
     def _do():
         o = base_opts()
         o.update({'extract_flat': True, 'skip_download': True})
-        with yt_dlp.YoutubeDL(o) as y:
-            return y.extract_info(f"scsearch{limit}:{q}", download=False)
+        with yt_dlp.YoutubeDL(o) as y: return y.extract_info(f"scsearch{limit}:{q}", download=False)
     info = run_to(_do, timeout=25)
     out = []
     for e in (info.get('entries') or []):
@@ -276,12 +247,11 @@ def detect(url):
     if 'soundcloud.com' in url: return 'soundcloud'
     return None
 
-# ========== ROUTES ==========
 @app.route('/api/ping')
 def ping(): return 'pong', 200
 
 @app.route('/api/version')
-def api_version(): return jsonify({'v': _APP_VERSION}), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+def api_version(): return jsonify({'v': _APP_VERSION}), 200, {'Cache-Control': 'no-cache'}
 
 @app.route('/api/proxy_image')
 def proxy_image():
@@ -293,8 +263,7 @@ def proxy_image():
     except: return "Error", 502
 
 @app.route('/')
-def index():
-    return send_from_directory('templates', 'index.html'), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+def index(): return send_from_directory('templates', 'index.html'), 200, {'Cache-Control': 'no-cache'}
 
 @app.route('/api/sc_search')
 @rate_limit(30)
@@ -369,8 +338,7 @@ def rewrite_m3u8(content, base_url):
             if 'URI="' in s:
                 s = re.sub(r'URI="([^"]+)"', lambda m: f'URI="/hls_proxy?t={sign_token(urllib.parse.urljoin(base_url, m.group(1)))}"', s)
             out.append(s)
-        else:
-            out.append(f'/hls_proxy?t={sign_token(urllib.parse.urljoin(base_url, s))}')
+        else: out.append(f'/hls_proxy?t={sign_token(urllib.parse.urljoin(base_url, s))}')
     return '\n'.join(out)
 
 @app.route('/hls_proxy')
@@ -378,10 +346,8 @@ def hls_proxy():
     token = request.args.get('t', '')
     url = verify_token(token)
     if not url or not url.startswith('http'): return "Forbidden", 403
-    
     headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/', 'Accept': '*/*'}
-    try:
-        r = requests.get(url, headers=headers, stream=True, timeout=25, allow_redirects=True)
+    try: r = requests.get(url, headers=headers, stream=True, timeout=25, allow_redirects=True)
     except Exception as e: return f"Error: {e}", 502
 
     if r.status_code >= 400: return f"Upstream {r.status_code}", 502
@@ -428,8 +394,7 @@ def stream(vid):
     rng = request.headers.get('Range', '')
     if rng: hdrs['Range'] = rng
 
-    try:
-        req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
+    try: req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
     except Exception as e: return f"Stream error: {e}", 502
 
     if req.status_code in (401, 403):
@@ -452,7 +417,6 @@ def stream(vid):
 
     return Response(stream_with_context(req.iter_content(65536)), status=req.status_code, headers=h)
 
-# ========== DOWNLOAD ==========
 def dl_task(tid, vid):
     def hook(d):
         if d['status'] == 'downloading': tasks[tid]['progress'] = d.get('_percent_str', '').strip()
@@ -498,7 +462,6 @@ def dl_file(tid):
     safe = re.sub(r'[^\w\s\-\.]', '', t['title'])[:80].strip() or 'audio'
     return send_file(t['file'], as_attachment=True, download_name=safe + ext, mimetype=MIME_MAP.get(ext, 'application/octet-stream'))
 
-# ========== PARTY ==========
 def clean_room(code):
     room = PARTY_ROOMS.get(code)
     if not room: return
@@ -619,7 +582,6 @@ def party_chat():
         return jsonify({'ok': True})
     except: return jsonify({'ok': False})
 
-# ========== ICONS & PWA ==========
 def _render_nova_icon(size):
     if not HAS_PIL: return None
     try:
@@ -629,7 +591,6 @@ def _render_nova_icon(size):
         grad = Image.radial_gradient('L').resize((size, size), Image.LANCZOS)
         mask = Image.eval(grad, lambda x: int((255 - x) * 0.65))
         img = Image.composite(Image.new('RGBA', (size, size), (58, 16, 96, 255)), Image.new('RGBA', (size, size), (2, 1, 10, 255)), mask)
-        
         spike = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         sd = ImageDraw.Draw(spike)
         for angle_deg in (0, 90, 180, 270):
@@ -638,7 +599,6 @@ def _render_nova_icon(size):
             sd.polygon([(cx + apex_r * math.cos(a), cy + apex_r * math.sin(a)), (cx + base_r * math.cos(a - spread), cy + base_r * math.sin(a - spread)), (cx + base_r * math.cos(a + spread), cy + base_r * math.sin(a + spread))], fill=(167, 139, 250, 240))
         img = Image.alpha_composite(img, spike.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.022))))
         img = Image.alpha_composite(img, spike)
-        
         ring = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         rd = ImageDraw.Draw(ring)
         ring_cy, ring_r, ring_w = int(cy - 40 * R), int(138 * R), max(8, int(22 * R))
@@ -646,7 +606,6 @@ def _render_nova_icon(size):
         img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(3, size*0.045))))
         img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
         img = Image.alpha_composite(img, ring)
-        
         sil = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         s = ImageDraw.Draw(sil)
         shoulder_y = int(cy + 110 * R)
@@ -659,14 +618,12 @@ def _render_nova_icon(size):
         s.polygon([(cx-int(22*R), crown_y+int(18*R)), (cx, crown_y-int(82*R)), (cx+int(22*R), crown_y+int(18*R))], fill=(0,0,0,255))
         s.polygon([(cx+int(20*R), crown_y+int(18*R)), (cx+int(40*R), crown_y-int(42*R)), (cx+int(52*R), crown_y+int(18*R))], fill=(0,0,0,255))
         img = Image.alpha_composite(img, sil)
-        
         beam = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         bd = ImageDraw.Draw(beam)
         beam_top, beam_w = int(head_cy + int(10*R)), max(2, int(3 * R))
         bd.rectangle([cx - beam_w, beam_top, cx + beam_w, size], fill=(212, 187, 255, 220))
         img = Image.alpha_composite(img, beam.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.014))))
         img = Image.alpha_composite(img, beam)
-        
         star_cx, star_cy, star_outer, star_inner = cx, head_cy + int(5*R), int(46 * R), int(8 * R)
         pts = []
         for i in range(8):
