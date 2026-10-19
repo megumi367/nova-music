@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file, send_from_directory
 from flask_compress import Compress
-import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, io
+import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, io, hmac, hashlib
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from collections import defaultdict, deque
 from functools import wraps
@@ -12,7 +12,6 @@ except ImportError:
     HAS_PIL = False
 
 app = Flask(__name__)
-# Flask 2.3+ dùng app.json.ensure_ascii, cũ hơn dùng config
 try:
     app.json.ensure_ascii = False
 except Exception:
@@ -26,8 +25,8 @@ DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 _exec = ThreadPoolExecutor(max_workers=8)
 
-# Version dùng cho auto-update (tăng mỗi lần restart)
 _APP_VERSION = int(time.time())
+_SECRET = os.environ.get('NOVA_SECRET') or 'nova-hls-secret-v1-stable'
 
 # ========== RATE LIMIT ==========
 _rate_store = defaultdict(lambda: deque(maxlen=200))
@@ -48,13 +47,39 @@ def rate_limit(max_per_min=60):
         return wrapper
     return deco
 
-# ========== SSRF WHITELIST ==========
+# ========== TOKEN SIGNING (HMAC) ==========
+def b64e(s):
+    return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
+
+def b64d(s):
+    return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
+
+def sign_token(url):
+    """Ký URL bằng HMAC để chống SSRF (chỉ server mới tạo được token hợp lệ)."""
+    raw = b64e(url)
+    sig = hmac.new(_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:16]
+    return raw + '.' + sig
+
+def verify_token(token):
+    """Xác thực token. Trả về URL nếu hợp lệ, None nếu sai."""
+    if not token or '.' not in token:
+        return None
+    try:
+        raw, sig = token.rsplit('.', 1)
+        expected = hmac.new(_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:16]
+        if not hmac.compare_digest(sig, expected):
+            return None
+        return b64d(raw)
+    except Exception:
+        return None
+
+# ========== SSRF WHITELIST (chỉ cho proxy_image) ==========
 PROXY_ALLOWED_HOSTS = {
-    'sndcdn.com', 'soundcloud.com',
+    'sndcdn.com', 'soundcloud.com', 'soundcloud.cloud',
     'mzstatic.com', 'ytimg.com',
     'gstatic.com', 'googleusercontent.com',
-    'akamaized.net', 'cloudfront.net',
-    'scdn.co',
+    'akamaized.net', 'cloudfront.net', 'fastly.net',
+    'scdn.co', 'twimg.com',
 }
 
 def _is_proxy_allowed(url):
@@ -79,7 +104,6 @@ MIME_MAP = {
     '.wav': 'audio/wav', '.flac': 'audio/flac',
 }
 
-# ========== ICON CACHE ==========
 _ICON_CACHE = {}
 
 # ========== COOKIES ==========
@@ -103,7 +127,7 @@ except: pass
 # ========== CLEANUP ==========
 def cleanup_downloads_loop():
     while True:
-        time.sleep(3600)  # mỗi 1 tiếng
+        time.sleep(3600)
         now = time.time()
         try:
             if os.path.exists(DOWNLOAD_DIR):
@@ -115,16 +139,12 @@ def cleanup_downloads_loop():
                 if tasks[tid].get('status') in ('done', 'error'):
                     if now - tasks[tid].get('_ts', now) > 7200:
                         del tasks[tid]
-            # Rate limit store cleanup
             for ip in list(_rate_store.keys()):
                 if not _rate_store[ip] or now - _rate_store[ip][-1] > 600:
                     del _rate_store[ip]
-            # Party rooms cleanup (safety net)
             for code in list(PARTY_ROOMS.keys()):
-                try:
-                    clean_room(code)
-                except Exception:
-                    pass
+                try: clean_room(code)
+                except Exception: pass
         except Exception as e:
             print("Cleanup error:", e)
 
@@ -176,21 +196,54 @@ def extract_soundcloud(vid, timeout=25):
     return run_to(_do, timeout=timeout)
 
 def extract_audio(vid, timeout=30):
+    """QUAN TRỌNG: Ưu tiên progressive (HTTP) hơn HLS — ổn định hơn nhiều."""
     info = extract_soundcloud(vid, timeout=timeout)
-    u = info.get('url')
-    if not u:
-        fmts = info.get('formats') or []
-        for f in reversed(fmts):
-            if f.get('url'):
-                u = f['url']
-                info['protocol'] = f.get('protocol')
-                info['http_headers'] = f.get('http_headers', info.get('http_headers', {}))
-                break
-    if not u:
+    fmts = info.get('formats') or []
+
+    best_progressive = None
+    best_hls = None
+
+    for f in reversed(fmts):
+        if not f.get('url'): continue
+        proto = (f.get('protocol') or '').lower()
+        url_lower = f['url'].lower()
+        is_hls = 'm3u8' in proto or 'm3u8' in url_lower
+        if is_hls:
+            if not best_hls: best_hls = f
+        else:
+            if not best_progressive: best_progressive = f
+
+    top_url = info.get('url')
+    top_proto = (info.get('protocol') or '').lower()
+    top_is_hls = 'm3u8' in top_proto or 'm3u8' in (top_url or '').lower()
+
+    # Chọn: progressive > top non-HLS > hls > top
+    chosen = None
+    if best_progressive:
+        chosen = best_progressive
+    elif top_url and not top_is_hls:
+        chosen = {'url': top_url, 'protocol': info.get('protocol'),
+                  'http_headers': info.get('http_headers', {})}
+    elif best_hls:
+        chosen = best_hls
+    elif top_url:
+        chosen = {'url': top_url, 'protocol': info.get('protocol'),
+                  'http_headers': info.get('http_headers', {})}
+
+    if not chosen or not chosen.get('url'):
         raise Exception("Không có URL stream")
-    proto = (info.get('protocol') or '').lower()
+
+    u = chosen['url']
+    proto = (chosen.get('protocol') or '').lower()
     is_hls = 'm3u8' in u.lower() or 'm3u8' in proto
     thumb = info.get('thumbnail') or (info.get('thumbnails') or [{}])[-1].get('url')
+
+    headers = dict(chosen.get('http_headers') or info.get('http_headers') or {})
+    headers.setdefault('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36')
+    headers.setdefault('Referer', 'https://soundcloud.com/')
+
+    print(f"[EXTRACT] {vid} → {'HLS' if is_hls else 'PROGRESSIVE'} | {u[:80]}...")
+
     return {
         'title': info.get('title'),
         'thumbnail': thumb,
@@ -200,21 +253,19 @@ def extract_audio(vid, timeout=30):
         'id': info.get('id') or vid,
         'url': u,
         'is_hls': is_hls,
-        'headers': info.get('http_headers', {}) or {'User-Agent': 'Mozilla/5.0'},
+        'headers': headers,
     }
 
-def get_cached(vid):
+def get_cached(vid, force=False):
     key = f"sc:{vid}"
     now = time.time()
-    if key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
+    if not force and key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
         return stream_cache[key]['data']
     info = extract_audio(vid)
-    ttl = 7000
+    # TTL 3600s (1 giờ) — SC signature thường 30-60 phút
+    ttl = 3600
     stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
     return info
-
-def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
-def b64d(s): return base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
 
 def build_sc_url(e):
     for k in ('webpage_url', 'permalink_url', 'original_url'):
@@ -254,7 +305,7 @@ def detect(url):
     if 'soundcloud.com' in url: return 'soundcloud'
     return None
 
-# ========== ROUTES: CORE ==========
+# ========== ROUTES ==========
 @app.route('/api/ping')
 def ping():
     return 'pong', 200
@@ -273,7 +324,8 @@ def proxy_image():
         return "Domain không được phép", 403
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-        return Response(r.content, mimetype=r.headers.get('Content-Type', 'image/jpeg'), headers={'Cache-Control': 'public, max-age=86400'})
+        return Response(r.content, mimetype=r.headers.get('Content-Type', 'image/jpeg'),
+                        headers={'Cache-Control': 'public, max-age=86400'})
     except Exception:
         return "Error", 502
 
@@ -325,7 +377,7 @@ def play():
             'is_hls': info.get('is_hls', False),
         }
         if info.get('is_hls'):
-            resp['hls_token'] = b64e(info['url'])
+            resp['hls_token'] = sign_token(info['url'])
         else:
             resp['url'] = info['url']
         return jsonify(resp)
@@ -366,67 +418,134 @@ def lyrics():
         return jsonify({'error': 'Không có lời'}), 404
 
 # ========== HLS PROXY ==========
-def rewrite_m3u8(c, base):
+def rewrite_m3u8(content, base_url):
     out = []
-    for line in c.split('\n'):
+    for line in content.split('\n'):
         s = line.strip()
         if not s:
             out.append(line); continue
         if s.startswith('#'):
             if 'URI="' in s:
                 def repl(m):
-                    return f'URI="/hls_proxy?t={b64e(urllib.parse.urljoin(base, m.group(1)))}"'
+                    new_url = urllib.parse.urljoin(base_url, m.group(1))
+                    return f'URI="/hls_proxy?t={sign_token(new_url)}"'
                 s = re.sub(r'URI="([^"]+)"', repl, s)
             out.append(s)
         else:
-            out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
+            new_url = urllib.parse.urljoin(base_url, s)
+            out.append(f'/hls_proxy?t={sign_token(new_url)}')
     return '\n'.join(out)
 
 @app.route('/hls_proxy')
 def hls_proxy():
     token = request.args.get('t', '')
-    if not token: return "Missing", 400
+    if not token: return "Missing token", 400
+
+    url = verify_token(token)
+    if not url:
+        print(f"[HLS] BAD TOKEN")
+        return "Token không hợp lệ", 403
+    if not url.startswith('http'):
+        return "Bad URL", 400
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        'Referer': 'https://soundcloud.com/',
+        'Origin': 'https://soundcloud.com',
+        'Accept': '*/*',
+    }
+
     try:
-        url = b64d(token)
-    except Exception:
-        return "Bad token", 400
-    if not url.startswith('http'): return "Bad URL", 400
-    if not _is_proxy_allowed(url):
-        return "Domain không được phép", 403
-    headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/'}
-    try:
-        r = requests.get(url, headers=headers, stream=True, timeout=20)
+        r = requests.get(url, headers=headers, stream=True, timeout=25, allow_redirects=True)
     except Exception as e:
+        print(f"[HLS] FETCH ERR: {e} | {url[:100]}")
         return f"Error: {e}", 502
+
+    if r.status_code >= 400:
+        print(f"[HLS] HTTP {r.status_code}: {url[:100]}")
+        return f"Upstream {r.status_code}", 502
+
     ct = (r.headers.get('Content-Type') or '').lower()
-    is_pl = 'mpegurl' in ct or url.lower().split('?')[0].endswith('.m3u8')
-    if is_pl:
+    path_lower = url.lower().split('?')[0]
+    is_playlist = ('mpegurl' in ct or 'm3u8' in ct
+                   or path_lower.endswith('.m3u8')
+                   or url.lower().split('?')[0].endswith('.m3u8'))
+
+    if is_playlist:
         try:
-            c = r.text
-        except Exception:
-            return "Read error", 502
+            content = r.text
+            if not content.strip().startswith('#EXTM3U'):
+                print(f"[HLS] NOT M3U8: {content[:80]}")
+                return "Không phải m3u8", 502
+        except Exception as e:
+            return f"Read error: {e}", 502
+
+        rewritten = rewrite_m3u8(content, url)
         return Response(
-            rewrite_m3u8(c, url),
+            rewritten,
             mimetype='application/vnd.apple.mpegurl',
-            headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-cache',
+                'Content-Length': str(len(rewritten)),
+            }
         )
 
     def gen():
         try:
             for chunk in r.iter_content(16384):
                 if chunk: yield chunk
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[HLS] SEG ERR: {e}")
         finally:
             try: r.close()
             except Exception: pass
-    return Response(
-        stream_with_context(gen()),
-        mimetype=ct or 'audio/aac',
-        headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
-    )
 
-# ========== STREAM (hỗ trợ HEAD) ==========
+    resp_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+        'Accept-Ranges': 'bytes',
+    }
+    for k in ('Content-Type', 'Content-Length', 'Content-Range'):
+        if k in r.headers:
+            resp_headers[k] = r.headers[k]
+    if 'Content-Type' not in resp_headers:
+        resp_headers['Content-Type'] = 'video/mp2t' if path_lower.endswith('.ts') else 'audio/aac'
+
+    return Response(stream_with_context(gen()), status=r.status_code, headers=resp_headers)
+
+# ========== DIAGNOSTIC ==========
+@app.route('/api/hls_test')
+def hls_test():
+    """Test endpoint — dùng để debug HLS. Ví dụ: /api/hls_test?t=<token>"""
+    token = request.args.get('t', '')
+    url = verify_token(token) if token else request.args.get('url', '')
+    if not url:
+        return jsonify({'error': 'Cần ?t=<token> hoặc ?url=<url>'}), 400
+    try:
+        r = requests.get(url, headers={
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://soundcloud.com/'
+        }, timeout=15, stream=True, allow_redirects=True)
+        ct = r.headers.get('Content-Type') or ''
+        preview = ''
+        if 'mpegurl' in ct.lower() or url.endswith('.m3u8'):
+            try: preview = r.text[:1000]
+            except: preview = '(read error)'
+        else:
+            preview = f'(binary, {len(r.content)} bytes)'
+        return jsonify({
+            'status': r.status_code,
+            'content_type': ct,
+            'url': url,
+            'final_url': r.url,
+            'preview': preview,
+            'is_m3u8': preview.strip().startswith('#EXTM3U') if isinstance(preview, str) else False,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'url': url}), 500
+
+# ========== STREAM ==========
 @app.route('/stream/<path:vid>', methods=['GET', 'HEAD'])
 def stream(vid):
     try:
@@ -435,8 +554,10 @@ def stream(vid):
     except Exception as e:
         traceback.print_exc()
         return f"Lỗi: {e}", 500
+
     if info.get('is_hls'):
-        return "Dùng /hls_proxy", 400
+        # Fallback: nếu client vào /stream/ mà info là HLS (hiếm), redirect sang HLS proxy
+        return jsonify({'error': 'HLS stream — dùng /hls_proxy', 'hls_token': sign_token(info['url'])}), 400
 
     hdrs = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -454,6 +575,20 @@ def stream(vid):
     except Exception as e:
         return f"Stream error: {e}", 502
 
+    # URL có thể hết hạn → force refresh
+    if req.status_code in (401, 403):
+        print(f"[STREAM] {req.status_code} — refreshing cache for {vid}")
+        try:
+            info = get_cached(vid, force=True)
+            try: req.close()
+            except: pass
+            try:
+                req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
+            except Exception as e:
+                return f"Stream refresh error: {e}", 502
+        except Exception as e:
+            return f"Refresh failed: {e}", 502
+
     h = {'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'}
     for k in ('Content-Type', 'Content-Length', 'Content-Range'):
         if k in req.headers:
@@ -463,10 +598,9 @@ def stream(vid):
         ext = info['url'].split('?')[0].split('.')[-1].lower()
         h['Content-Type'] = MIME_MAP.get('.' + ext, 'audio/mp4')
 
-    # HEAD: chỉ trả headers, đóng upstream
     if request.method == 'HEAD':
         try: req.close()
-        except Exception: pass
+        except: pass
         return Response(status=req.status_code, headers=h)
 
     return Response(
@@ -540,7 +674,6 @@ def clean_room(code):
     if not room['members']:
         del PARTY_ROOMS[code]
         return
-    # Promote new host nếu host gốc đã rời
     host_sid = room.get('host_sid')
     if host_sid not in room['members']:
         new_sid = next(iter(room['members']))
@@ -560,10 +693,7 @@ def party_create():
             'queue': [],
             'members': {sid: {'name': user, 'last_seen': time.time(), 'sid': sid}},
             'playing': None, 'position': 0, 'is_playing': False,
-            'chat': [],
-            'host': user,
-            'host_sid': sid,
-            'created': time.time(),
+            'chat': [], 'host': user, 'host_sid': sid, 'created': time.time(),
         }
         return jsonify({'code': code, 'sid': sid, 'is_host': True})
     except Exception as e:
@@ -580,7 +710,6 @@ def party_join():
         room = PARTY_ROOMS[code]
         sid = uuid.uuid4().hex[:10]
         is_host = False
-        # Host reclaim nếu host gốc offline và tên trùng
         if room.get('host_sid') not in room['members'] and user == room.get('host'):
             room['host_sid'] = sid
             is_host = True
@@ -607,8 +736,7 @@ def party_state():
             'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()],
             'playing': room['playing'], 'position': room['position'],
             'is_playing': room['is_playing'], 'chat': room['chat'][-30:],
-            'host': room.get('host'),
-            'host_sid': room.get('host_sid'),
+            'host': room.get('host'), 'host_sid': room.get('host_sid'),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -690,28 +818,24 @@ def party_chat():
     except Exception:
         return jsonify({'ok': False}), 500
 
-# ========== PWA ICON GENERATOR ==========
+# ========== ICONS ==========
 def _render_nova_icon(size):
-    if not HAS_PIL:
-        return None
+    if not HAS_PIL: return None
     try:
         import math
         img = Image.new('RGBA', (size, size), (2, 1, 10, 255))
         cx, cy = size // 2, size // 2
         R = size / 512.0
-
         grad = Image.radial_gradient('L').resize((size, size), Image.LANCZOS)
         mask = Image.eval(grad, lambda x: int((255 - x) * 0.65))
         purple = Image.new('RGBA', (size, size), (58, 16, 96, 255))
         dark = Image.new('RGBA', (size, size), (2, 1, 10, 255))
         img = Image.composite(purple, dark, mask)
-
         spike = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         sd = ImageDraw.Draw(spike)
         for angle_deg in (0, 90, 180, 270):
             a = math.radians(angle_deg - 90)
-            apex_r = int(248 * R)
-            base_r = int(172 * R)
+            apex_r, base_r = int(248 * R), int(172 * R)
             spread = math.radians(8)
             apex = (cx + apex_r * math.cos(a), cy + apex_r * math.sin(a))
             p1 = (cx + base_r * math.cos(a - spread), cy + base_r * math.sin(a - spread))
@@ -719,82 +843,65 @@ def _render_nova_icon(size):
             sd.polygon([apex, p1, p2], fill=(167, 139, 250, 240))
         img = Image.alpha_composite(img, spike.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.022))))
         img = Image.alpha_composite(img, spike)
-
         ring = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         rd = ImageDraw.Draw(ring)
-        ring_cy = int(cy - 40 * R)
-        ring_r = int(138 * R)
+        ring_cy, ring_r = int(cy - 40 * R), int(138 * R)
         ring_w = max(8, int(22 * R))
         rd.ellipse([cx-ring_r, ring_cy-ring_r, cx+ring_r, ring_cy+ring_r],
                    outline=(183, 148, 255, 255), width=ring_w)
         img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(3, size*0.045))))
         img = Image.alpha_composite(img, ring.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
         img = Image.alpha_composite(img, ring)
-
         sil = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         s = ImageDraw.Draw(sil)
         shoulder_y = int(cy + 110 * R)
         s.polygon([
-            (cx - int(132*R), size),
-            (cx + int(132*R), size),
-            (cx + int(88*R), shoulder_y),
-            (cx - int(88*R), shoulder_y),
+            (cx - int(132*R), size), (cx + int(132*R), size),
+            (cx + int(88*R), shoulder_y), (cx - int(88*R), shoulder_y),
         ], fill=(0, 0, 0, 255))
         s.rectangle([cx-int(28*R), int(cy + 15*R), cx+int(28*R), shoulder_y + int(12*R)], fill=(0,0,0,255))
-        head_r = int(70 * R)
-        head_cy = int(cy - 15 * R)
+        head_r, head_cy = int(70 * R), int(cy - 15 * R)
         s.ellipse([cx-head_r, head_cy-head_r, cx+head_r, head_cy+head_r], fill=(0,0,0,255))
         crown_y = int(head_cy - head_r + int(18*R))
         s.polygon([(cx-int(52*R), crown_y+int(18*R)), (cx-int(40*R), crown_y-int(42*R)), (cx-int(20*R), crown_y+int(18*R))], fill=(0,0,0,255))
         s.polygon([(cx-int(22*R), crown_y+int(18*R)), (cx, crown_y-int(82*R)), (cx+int(22*R), crown_y+int(18*R))], fill=(0,0,0,255))
         s.polygon([(cx+int(20*R), crown_y+int(18*R)), (cx+int(40*R), crown_y-int(42*R)), (cx+int(52*R), crown_y+int(18*R))], fill=(0,0,0,255))
         img = Image.alpha_composite(img, sil)
-
         beam = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         bd = ImageDraw.Draw(beam)
-        beam_top = int(head_cy + int(10*R))
-        beam_w = max(2, int(3 * R))
+        beam_top, beam_w = int(head_cy + int(10*R)), max(2, int(3 * R))
         bd.rectangle([cx - beam_w, beam_top, cx + beam_w, size], fill=(212, 187, 255, 220))
         img = Image.alpha_composite(img, beam.filter(ImageFilter.GaussianBlur(radius=max(2, size*0.014))))
         img = Image.alpha_composite(img, beam)
-
         star_cx, star_cy = cx, head_cy + int(5*R)
-        star_outer = int(46 * R)
-        star_inner = int(8 * R)
+        star_outer, star_inner = int(46 * R), int(8 * R)
         pts = []
         for i in range(8):
             angle = math.radians(i * 45 - 90)
             r = star_outer if i % 2 == 0 else star_inner
             pts.append((star_cx + r * math.cos(angle), star_cy + r * math.sin(angle)))
-
         sg = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         ImageDraw.Draw(sg).polygon(pts, fill=(200, 150, 255, 255))
         img = Image.alpha_composite(img, sg.filter(ImageFilter.GaussianBlur(radius=max(3, size*0.04))))
-
         sw = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         ImageDraw.Draw(sw).polygon(pts, fill=(255, 255, 255, 255))
         img = Image.alpha_composite(img, sw.filter(ImageFilter.GaussianBlur(radius=max(1, size*0.012))))
-
         ss = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         ImageDraw.Draw(ss).polygon(pts, fill=(255, 255, 255, 255))
         img = Image.alpha_composite(img, ss)
-
         buf = io.BytesIO()
         img.save(buf, format='PNG', optimize=True)
         return buf.getvalue()
     except Exception as e:
         traceback.print_exc()
-        print(f"Lỗi vẽ icon: {e}")
         return None
 
 @app.route('/icon-v3-<int:size>.png')
 def pwa_icon_png_v3(size):
     if size not in (96, 128, 144, 152, 180, 192, 256, 384, 512):
         return "Bad size", 404
-    if size in _ICON_CACHE:
-        data = _ICON_CACHE[size]
-    else:
-        data = _render_nova_icon(size)
+    data = _ICON_CACHE.get(size) or _render_nova_icon(size)
+    if data:
         _ICON_CACHE[size] = data
     if data is None:
         return pwa_icon_svg()
@@ -806,67 +913,28 @@ def pwa_icon_png_v3(size):
 @app.route('/icon.svg')
 def pwa_icon_svg():
     svg = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
-      <stop offset="0%" stop-color="#3a1060"/>
-      <stop offset="55%" stop-color="#0a0520"/>
-      <stop offset="100%" stop-color="#02010a"/>
-    </radialGradient>
-    <filter id="gw" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="12"/>
-    </filter>
-  </defs>
+  <defs><radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0%" stop-color="#3a1060"/><stop offset="55%" stop-color="#0a0520"/><stop offset="100%" stop-color="#02010a"/></radialGradient></defs>
   <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
-  <g filter="url(#gw)">
-    <path d="M 256 8 L 268 176 L 256 190 L 244 176 Z" fill="#a78bfa"/>
-    <path d="M 256 504 L 268 336 L 256 322 L 244 336 Z" fill="#a78bfa"/>
-    <path d="M 8 256 L 176 268 L 190 256 L 176 244 Z" fill="#a78bfa"/>
-    <path d="M 504 256 L 336 268 L 322 256 L 336 244 Z" fill="#a78bfa"/>
-  </g>
-  <g filter="url(#soft)" opacity="0.85">
-    <circle cx="256" cy="216" r="140" fill="none" stroke="#b794ff" stroke-width="24"/>
-  </g>
   <circle cx="256" cy="216" r="140" fill="none" stroke="#c4a3ff" stroke-width="14"/>
   <g fill="#000">
     <path d="M 120 512 L 140 390 C 150 340, 190 300, 220 290 L 256 310 L 292 290 C 322 300, 362 340, 372 390 L 392 512 Z"/>
-    <rect x="230" y="250" width="52" height="70"/>
     <ellipse cx="256" cy="210" rx="72" ry="80"/>
-    <path d="M 190 175 L 210 105 L 230 175 Z"/>
-    <path d="M 232 165 L 256 65 L 280 165 Z"/>
-    <path d="M 282 175 L 302 105 L 322 175 Z"/>
-  </g>
-  <g filter="url(#gw)">
-    <path d="M 252 512 L 260 512 L 259 215 L 253 215 Z" fill="#d4bbff" opacity="0.9"/>
-  </g>
-  <g filter="url(#gw)">
-    <path d="M 256 120 L 272 195 L 350 210 L 272 225 L 256 300 L 240 225 L 162 210 L 240 195 Z" fill="#e0d0ff"/>
+    <path d="M 190 175 L 210 105 L 230 175 Z"/><path d="M 232 165 L 256 65 L 280 165 Z"/><path d="M 282 175 L 302 105 L 322 175 Z"/>
   </g>
   <path d="M 256 155 L 264 198 L 308 208 L 264 218 L 256 262 L 248 218 L 204 208 L 248 198 Z" fill="#ffffff"/>
-  <circle cx="256" cy="210" r="5" fill="#fff"/>
 </svg>'''
     return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
 
 @app.route('/manifest.json')
 def manifest():
     data = {
-        'name': 'Nova Music Universe',
-        'short_name': 'Nova',
+        'name': 'Nova Music Universe', 'short_name': 'Nova',
         'description': 'Nghe nhạc SoundCloud Premium',
-        'start_url': '/?source=pwa',
-        'scope': '/',
-        'display': 'standalone',
+        'start_url': '/?source=pwa', 'scope': '/', 'display': 'standalone',
         'display_override': ['window-controls-overlay', 'standalone', 'minimal-ui'],
-        'orientation': 'portrait-primary',
-        'background_color': '#030305',
-        'theme_color': '#8b5cf6',
-        'lang': 'vi',
-        'dir': 'ltr',
-        'categories': ['music', 'entertainment'],
-        'prefer_related_applications': False,
+        'orientation': 'portrait-primary', 'background_color': '#030305',
+        'theme_color': '#8b5cf6', 'lang': 'vi', 'dir': 'ltr',
+        'categories': ['music', 'entertainment'], 'prefer_related_applications': False,
         'icons': [
             {'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml', 'purpose': 'any maskable'},
             {'src': '/icon-v3-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
@@ -886,43 +954,32 @@ def assetlinks():
     data = [{
         "relation": ["delegate_permission/common.handle_all_urls"],
         "target": {
-            "namespace": "android_app",
-            "package_name": "com.nova.music",
-            "sha256_cert_fingerprints": [
-                "EC:9B:D9:C2:FC:BA:68:45:A0:C1:F8:AF:E0:15:92:52:F4:66:AA:01:56:66:28:5F:9A:57:E9:D5:6A:26:02:6F"
-            ]
+            "namespace": "android_app", "package_name": "com.nova.music",
+            "sha256_cert_fingerprints": ["EC:9B:D9:C2:FC:BA:68:45:A0:C1:F8:AF:E0:15:92:52:F4:66:AA:01:56:66:28:5F:9A:57:E9:D5:6A:26:02:6F"]
         }
     }]
-    return jsonify(data), 200, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
-    }
+    return jsonify(data), 200, {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
 
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v21';
+    s = """const C='nova-v22';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{
-  e.waitUntil(
-    caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))
-    .then(()=>self.clients.claim())
-  );
+  e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()));
 });
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
   if(u.pathname==='/'||u.pathname.endsWith('.html')||u.pathname==='/sw.js'){
-    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
-    return;
+    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));return;
   }
   if(u.pathname.startsWith('/icon-')||u.pathname==='/icon.svg'){
     e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
-      const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;
-    })));
-    return;
+      const cl=r.clone();caches.open(C).then(cc=>cc.put(e.request,cl));return r;
+    })));return;
   }
   if(u.pathname==='/manifest.json'||u.pathname.startsWith('/static/')){
     e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{
-      const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;
+      const cl=r.clone();caches.open(C).then(cc=>cc.put(e.request,cl));return r;
     })));
   }
 });
@@ -934,12 +991,11 @@ self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting(
 def debug():
     import yt_dlp as y
     return jsonify({
-        'version': _APP_VERSION,
-        'yt_dlp': y.version.__version__, 'ffmpeg': FFMPEG_OK,
-        'cookies': bool(COOKIES_FILE),
+        'version': _APP_VERSION, 'yt_dlp': y.version.__version__,
+        'ffmpeg': FFMPEG_OK, 'cookies': bool(COOKIES_FILE),
         'cache': len(stream_cache), 'rooms': len(PARTY_ROOMS),
         'tasks': len(tasks), 'icon_cache': len(_ICON_CACHE),
-        'pillow': HAS_PIL,
+        'pillow': HAS_PIL, 'hmac_enabled': True,
     })
 
 if __name__ == '__main__':
