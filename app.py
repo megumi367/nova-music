@@ -3,12 +3,6 @@ from flask_compress import Compress
 import yt_dlp, requests, re, time, traceback, os, uuid, threading, subprocess, base64, urllib.parse, tempfile, io
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
-try:
-    from PIL import Image
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 Compress(app)
@@ -16,6 +10,7 @@ Compress(app)
 stream_cache = {}
 tasks = {}
 PARTY_ROOMS = {}
+TRACK_COMMENTS = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 _exec = ThreadPoolExecutor(max_workers=8)
@@ -53,7 +48,7 @@ def cleanup_downloads_loop():
                     if now - tasks[tid].get('_ts', now) > 7200:
                         del tasks[tid]
         except Exception as e:
-            print("Cleanup error:", e)
+            pass
 
 threading.Thread(target=cleanup_downloads_loop, daemon=True).start()
 
@@ -136,8 +131,7 @@ def get_cached(vid):
     if key in stream_cache and now - stream_cache[key]['ts'] < stream_cache[key]['ttl']:
         return stream_cache[key]['data']
     info = extract_audio(vid)
-    ttl = 7000
-    stream_cache[key] = {'data': info, 'ts': now, 'ttl': ttl}
+    stream_cache[key] = {'data': info, 'ts': now, 'ttl': 7000}
     return info
 
 def b64e(s): return base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
@@ -181,9 +175,9 @@ def detect(url):
     if 'soundcloud.com' in url: return 'soundcloud'
     return None
 
+# ============ CORE ROUTES ==========
 @app.route('/api/ping')
-def ping():
-    return 'pong', 200
+def ping(): return 'pong', 200
 
 @app.route('/api/proxy_image')
 def proxy_image():
@@ -192,15 +186,11 @@ def proxy_image():
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         return Response(r.content, mimetype=r.headers.get('Content-Type', 'image/jpeg'), headers={'Cache-Control': 'public, max-age=86400'})
-    except:
-        return "Error", 502
+    except: return "Error", 502
 
 @app.route('/')
 def index():
-    return send_from_directory('templates', 'index.html'), 200, {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache', 'Expires': '0',
-    }
+    return send_from_directory('templates', 'index.html'), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
 
 @app.route('/api/sc_search')
 def sc_search_route():
@@ -210,7 +200,6 @@ def sc_search_route():
         r = sc_search(q)
         return jsonify(r if r else {'error': 'Không có kết quả'}), (200 if r else 404)
     except Exception as e:
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/suggest')
@@ -218,21 +207,16 @@ def suggest():
     q = request.args.get('q', '').strip()
     if not q or len(q) < 2: return jsonify([])
     try:
-        r = requests.get(
-            'https://suggestqueries.google.com/complete/search',
-            params={'client': 'firefox', 'ds': 'yt', 'q': q}, timeout=3
-        )
+        r = requests.get('https://suggestqueries.google.com/complete/search', params={'client': 'firefox', 'ds': 'yt', 'q': q}, timeout=3)
         return jsonify(r.json()[1][:8])
-    except:
-        return jsonify([])
+    except: return jsonify([])
 
 @app.route('/api/play', methods=['POST'])
 def play():
     try:
         b = request.json or {}
         vid = b.get('video_id')
-        if not vid:
-            return jsonify({'error': 'Thiếu video_id'}), 400
+        if not vid: return jsonify({'error': 'Thiếu video_id'}), 400
         vid = norm_sc(vid)
         info = get_cached(vid)
         resp = {
@@ -240,14 +224,10 @@ def play():
             'uploader': info['uploader'], 'source': 'soundcloud', 'id': info['id'],
             'is_hls': info.get('is_hls', False),
         }
-        if info.get('is_hls'):
-            resp['hls_token'] = b64e(info['url'])
-        else:
-            resp['url'] = info['url']
+        if info.get('is_hls'): resp['hls_token'] = b64e(info['url'])
+        else: resp['url'] = info['url']
         return jsonify(resp)
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 400
+    except Exception as e: return jsonify({'error': str(e)}), 400
 
 @app.route('/api/parse', methods=['POST'])
 def parse():
@@ -258,71 +238,48 @@ def parse():
         if not src: return jsonify({'error': 'Chỉ hỗ trợ SoundCloud'}), 400
         nurl = norm_sc(url)
         info = get_cached(nurl)
-        return jsonify({
-            'video_id': nurl, 'source': 'soundcloud', 'title': info['title'],
-            'thumbnail': info['thumbnail'], 'duration': info['duration'], 'uploader': info['uploader']
-        })
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'video_id': nurl, 'source': 'soundcloud', 'title': info['title'], 'thumbnail': info['thumbnail'], 'duration': info['duration'], 'uploader': info['uploader']})
+    except Exception as e: return jsonify({'error': str(e)}), 400
 
 @app.route('/api/lyrics')
 def lyrics():
-    artist = request.args.get('artist', '')
-    title = request.args.get('title', '')
-    if not artist or not title:
-        return jsonify({'error': 'Thiếu thông tin'}), 400
+    artist, title = request.args.get('artist', ''), request.args.get('title', '')
+    if not artist or not title: return jsonify({'error': 'Thiếu thông tin'}), 400
     try:
         r = requests.get(f"https://api.lyrics.ovh/v1/{artist}/{title}", timeout=6)
-        if r.status_code == 200:
-            return jsonify(r.json())
-        return jsonify({'error': 'Không có lời'}), 404
-    except:
-        return jsonify({'error': 'Không có lời'}), 404
+        if r.status_code == 200: return jsonify(r.json())
+    except: pass
+    return jsonify({'error': 'Không có lời'}), 404
 
 def rewrite_m3u8(c, base):
     out = []
     for line in c.split('\n'):
         s = line.strip()
-        if not s:
-            out.append(line); continue
+        if not s: out.append(line); continue
         if s.startswith('#'):
             if 'URI="' in s:
-                def repl(m):
-                    return f'URI="/hls_proxy?t={b64e(urllib.parse.urljoin(base, m.group(1)))}"'
+                def repl(m): return f'URI="/hls_proxy?t={b64e(urllib.parse.urljoin(base, m.group(1)))}"'
                 s = re.sub(r'URI="([^"]+)"', repl, s)
             out.append(s)
-        else:
-            out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
+        else: out.append(f'/hls_proxy?t={b64e(urllib.parse.urljoin(base, s))}')
     return '\n'.join(out)
 
 @app.route('/hls_proxy')
 def hls_proxy():
     token = request.args.get('t', '')
     if not token: return "Missing", 400
-    try:
-        url = b64d(token)
-    except:
-        return "Bad token", 400
+    try: url = b64d(token)
+    except: return "Bad token", 400
     if not url.startswith('http'): return "Bad URL", 400
     headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/'}
-    try:
-        r = requests.get(url, headers=headers, stream=True, timeout=20)
-    except Exception as e:
-        return f"Error: {e}", 502
+    try: r = requests.get(url, headers=headers, stream=True, timeout=20)
+    except Exception as e: return f"Error: {e}", 502
     ct = (r.headers.get('Content-Type') or '').lower()
     is_pl = 'mpegurl' in ct or url.lower().split('?')[0].endswith('.m3u8')
     if is_pl:
-        try:
-            c = r.text
-        except:
-            return "Read error", 502
-        return Response(
-            rewrite_m3u8(c, url),
-            mimetype='application/vnd.apple.mpegurl',
-            headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
-        )
-
+        try: c = r.text
+        except: return "Read error", 502
+        return Response(rewrite_m3u8(c, url), mimetype='application/vnd.apple.mpegurl', headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'})
     def gen():
         try:
             for chunk in r.iter_content(16384):
@@ -331,62 +288,31 @@ def hls_proxy():
         finally:
             try: r.close()
             except: pass
-    return Response(
-        stream_with_context(gen()),
-        mimetype=ct or 'audio/aac',
-        headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
-    )
+    return Response(stream_with_context(gen()), mimetype=ct or 'audio/aac', headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'})
 
 @app.route('/stream/<path:vid>')
 def stream(vid):
     try:
         vid = norm_sc(vid)
         info = get_cached(vid)
-    except Exception as e:
-        traceback.print_exc()
-        return f"Lỗi: {e}", 500
-    if info.get('is_hls'):
-        return "Dùng /hls_proxy", 400
-    
-    hdrs = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://soundcloud.com/',
-    }
-    if info.get('headers'):
-        hdrs.update(info['headers'])
-        
+    except Exception as e: return f"Lỗi: {e}", 500
+    if info.get('is_hls'): return "Dùng /hls_proxy", 400
+    hdrs = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://soundcloud.com/'}
+    if info.get('headers'): hdrs.update(info['headers'])
     rng = request.headers.get('Range', '')
-    if rng:
-        hdrs['Range'] = rng
-        
-    try:
-        req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
-    except Exception as e:
-        return f"Stream error: {e}", 502
-        
+    if rng: hdrs['Range'] = rng
+    try: req = requests.get(info['url'], stream=True, headers=hdrs, timeout=30)
+    except Exception as e: return f"Stream error: {e}", 502
     h = {'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'}
     for k in ('Content-Type', 'Content-Length', 'Content-Range'):
-        if k in req.headers:
-            h[k] = req.headers[k]
-            
-    if 'Content-Type' not in h:
-        ext = info['url'].split('?')[0].split('.')[-1].lower()
-        h['Content-Type'] = {
-            'm4a': 'audio/mp4', 'mp4': 'video/mp4',
-            'webm': 'video/webm', 'mp3': 'audio/mpeg'
-        }.get(ext, 'audio/mp4')
-        
-    return Response(
-        stream_with_context(req.iter_content(65536)),
-        status=req.status_code, headers=h
-    )
+        if k in req.headers: h[k] = req.headers[k]
+    if 'Content-Type' not in h: h['Content-Type'] = 'audio/mp4'
+    return Response(stream_with_context(req.iter_content(65536)), status=req.status_code, headers=h)
 
 def dl_task(tid, vid, fmt, source):
     def hook(d):
-        if d['status'] == 'downloading':
-            tasks[tid]['progress'] = d.get('_percent_str', '').strip()
-        elif d['status'] == 'finished':
-            tasks[tid]['status'] = 'processing'
+        if d['status'] == 'downloading': tasks[tid]['progress'] = d.get('_percent_str', '').strip()
+        elif d['status'] == 'finished': tasks[tid]['status'] = 'processing'
     try:
         o = base_opts()
         o['outtmpl'] = os.path.join(DOWNLOAD_DIR, f"{tid}.%(ext)s")
@@ -396,18 +322,13 @@ def dl_task(tid, vid, fmt, source):
         if FFMPEG_OK:
             o['format'] = 'bestaudio/best'
             o['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
-        else:
-            o['format'] = 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best'
-            
+        else: o['format'] = 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best'
         with yt_dlp.YoutubeDL(o) as y:
             info = y.extract_info(url, download=True)
             fn = y.prepare_filename(info)
-            if o.get('postprocessors'):
-                fn = os.path.splitext(fn)[0] + '.mp3'
+            if o.get('postprocessors'): fn = os.path.splitext(fn)[0] + '.mp3'
             tasks[tid].update({'status': 'done', 'file': fn, 'title': info.get('title', 'audio'), 'source': 'soundcloud'})
-    except Exception as e:
-        traceback.print_exc()
-        tasks[tid].update({'status': 'error', 'error': str(e)})
+    except Exception as e: tasks[tid].update({'status': 'error', 'error': str(e)})
 
 @app.route('/api/download', methods=['POST'])
 def download():
@@ -438,10 +359,8 @@ def clean_room(code):
     if not room: return
     now = time.time()
     for sid, m in list(room['members'].items()):
-        if now - m.get('last_seen', 0) > 60:
-            del room['members'][sid]
-    if not room['members']:
-        del PARTY_ROOMS[code]
+        if now - m.get('last_seen', 0) > 60: del room['members'][sid]
+    if not room['members']: del PARTY_ROOMS[code]
 
 @app.route('/api/party/create', methods=['POST', 'GET'])
 def party_create():
@@ -452,14 +371,9 @@ def party_create():
             code = uuid.uuid4().hex[:6].upper()
             if code not in PARTY_ROOMS: break
         sid = uuid.uuid4().hex[:10]
-        PARTY_ROOMS[code] = {
-            'queue': [], 'members': {sid: {'name': user, 'last_seen': time.time(), 'sid': sid}},
-            'playing': None, 'position': 0, 'is_playing': False,
-            'chat': [], 'host': user, 'created': time.time(),
-        }
+        PARTY_ROOMS[code] = {'queue': [], 'members': {sid: {'name': user, 'last_seen': time.time(), 'sid': sid}}, 'playing': None, 'position': 0, 'is_playing': False, 'chat': [], 'host': user, 'created': time.time()}
         return jsonify({'code': code, 'sid': sid, 'is_host': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/party/join', methods=['POST'])
 def party_join():
@@ -472,8 +386,7 @@ def party_join():
         sid = uuid.uuid4().hex[:10]
         PARTY_ROOMS[code]['members'][sid] = {'name': user, 'last_seen': time.time(), 'sid': sid}
         return jsonify({'code': code, 'sid': sid, 'is_host': user == PARTY_ROOMS[code].get('host')})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/party/state', methods=['POST'])
 def party_state():
@@ -483,20 +396,12 @@ def party_state():
         sid = d.get('sid')
         if code not in PARTY_ROOMS: return jsonify({'error': 'Phòng đã đóng'}), 404
         room = PARTY_ROOMS[code]
-        if sid and sid in room['members']:
-            room['members'][sid]['last_seen'] = time.time()
+        if sid and sid in room['members']: room['members'][sid]['last_seen'] = time.time()
         clean_room(code)
         if code not in PARTY_ROOMS: return jsonify({'error': 'Phòng đã đóng'}), 404
         room = PARTY_ROOMS[code]
-        return jsonify({
-            'queue': room['queue'],
-            'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()],
-            'playing': room['playing'], 'position': room['position'],
-            'is_playing': room['is_playing'], 'chat': room['chat'][-30:],
-            'host': room.get('host'),
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'queue': room['queue'], 'members': [{'name': m['name'], 'sid': k} for k, m in room['members'].items()], 'playing': room['playing'], 'position': room['position'], 'is_playing': room['is_playing'], 'chat': room['chat'][-30:], 'host': room.get('host')})
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/party/leave', methods=['POST'])
 def party_leave():
@@ -508,8 +413,7 @@ def party_leave():
             del PARTY_ROOMS[code]['members'][sid]
             clean_room(code)
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': True})
+    except: return jsonify({'ok': True})
 
 @app.route('/api/party/play', methods=['POST'])
 def party_play():
@@ -521,8 +425,7 @@ def party_play():
             PARTY_ROOMS[code]['position'] = 0
             PARTY_ROOMS[code]['is_playing'] = True
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': False}), 500
+    except: return jsonify({'ok': False}), 500
 
 @app.route('/api/party/sync', methods=['POST'])
 def party_sync():
@@ -533,8 +436,7 @@ def party_sync():
             PARTY_ROOMS[code]['position'] = d.get('position', 0)
             PARTY_ROOMS[code]['is_playing'] = d.get('is_playing', True)
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': False}), 500
+    except: return jsonify({'ok': False}), 500
 
 @app.route('/api/party/add', methods=['POST'])
 def party_add():
@@ -542,11 +444,9 @@ def party_add():
         d = request.get_json(silent=True) or {}
         code = (d.get('code') or '').upper()
         t = d.get('track')
-        if code in PARTY_ROOMS and t:
-            PARTY_ROOMS[code]['queue'].append(t)
+        if code in PARTY_ROOMS and t: PARTY_ROOMS[code]['queue'].append(t)
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': False}), 500
+    except: return jsonify({'ok': False}), 500
 
 @app.route('/api/party/remove', methods=['POST'])
 def party_remove():
@@ -554,11 +454,9 @@ def party_remove():
         d = request.get_json(silent=True) or {}
         code = (d.get('code') or '').upper()
         i = d.get('idx')
-        if code in PARTY_ROOMS and isinstance(i, int) and 0 <= i < len(PARTY_ROOMS[code]['queue']):
-            PARTY_ROOMS[code]['queue'].pop(i)
+        if code in PARTY_ROOMS and isinstance(i, int) and 0 <= i < len(PARTY_ROOMS[code]['queue']): PARTY_ROOMS[code]['queue'].pop(i)
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': False}), 500
+    except: return jsonify({'ok': False}), 500
 
 @app.route('/api/party/chat', methods=['POST'])
 def party_chat():
@@ -569,91 +467,111 @@ def party_chat():
         text = (d.get('text') or '').strip()[:200]
         if code in PARTY_ROOMS and text:
             PARTY_ROOMS[code]['chat'].append({'user': user, 'text': text, 'ts': time.time()})
-            if len(PARTY_ROOMS[code]['chat']) > 100:
-                PARTY_ROOMS[code]['chat'] = PARTY_ROOMS[code]['chat'][-100:]
+            if len(PARTY_ROOMS[code]['chat']) > 100: PARTY_ROOMS[code]['chat'] = PARTY_ROOMS[code]['chat'][-100:]
         return jsonify({'ok': True})
-    except:
-        return jsonify({'ok': False}), 500
+    except: return jsonify({'ok': False}), 500
 
-# ============ PWA ICONS ============
-@app.route('/icon.svg')
-def pwa_icon_svg():
-    svg = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="cosmicBg" cx="50%" cy="45%" r="60%">
-      <stop offset="0%" stop-color="#1c0a2e"/><stop offset="50%" stop-color="#0a0314"/><stop offset="100%" stop-color="#000000"/>
-    </radialGradient>
-    <linearGradient id="purpleGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#d8b4fe"/><stop offset="40%" stop-color="#a855f7"/><stop offset="100%" stop-color="#581c87"/>
-    </linearGradient>
-    <linearGradient id="starGlow" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#d8b4fe"/>
-    </linearGradient>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="8" result="blur1"/><feGaussianBlur stdDeviation="4" result="blur2"/>
-      <feMerge><feMergeNode in="blur1"/><feMergeNode in="blur2"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="15" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <circle cx="256" cy="256" r="256" fill="url(#cosmicBg)"/>
-  <g fill="url(#purpleGlow)" filter="url(#softGlow)" opacity="0.6">
-    <path d="M256 10 L270 180 L256 200 L242 180 Z"/><path d="M256 502 L270 332 L256 312 L242 332 Z"/>
-    <path d="M10 256 L180 270 L200 256 L180 242 Z"/><path d="M502 256 L332 270 L312 256 L332 242 Z"/>
-  </g>
-  <path d="M 120 200 A 150 150 0 0 1 380 200 A 120 120 0 0 0 120 200 Z" fill="none" stroke="url(#purpleGlow)" stroke-width="14" filter="url(#glow)" opacity="0.8"/>
-  <g fill="#050208">
-    <path d="M 120 512 L 140 380 C 160 320 200 300 240 310 L 256 340 L 272 310 C 312 300 352 320 372 380 L 392 512 Z"/>
-    <circle cx="256" cy="230" r="55"/><path d="M 201 200 L 220 140 L 236 190 L 256 120 L 276 190 L 292 140 L 311 200 Z"/><rect x="236" y="260" width="40" height="60"/>
-  </g>
-  <g filter="url(#glow)"><path d="M 256 180 L 268 218 L 306 230 L 268 242 L 256 280 L 244 242 L 206 230 L 244 218 Z" fill="url(#starGlow)"/></g>
-  <circle cx="256" cy="230" r="5" fill="#fff" filter="url(#glow)"/>
-  <g stroke="#a855f7" stroke-width="2" filter="url(#glow)" opacity="0.5">
-    <line x1="256" y1="280" x2="256" y2="512"/><line x1="230" y1="200" x2="190" y2="100" opacity="0.3"/><line x1="282" y1="200" x2="322" y2="100" opacity="0.3"/>
-  </g>
-</svg>'''
-    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
+# ============ V4: RADIO, TRENDING, COMMENTS ============
+@app.route('/api/radio', methods=['POST'])
+def radio():
+    try:
+        b = request.json or {}
+        vid = (b.get('video_id') or '').strip()
+        if not vid: return jsonify({'error': 'Missing video_id'}), 400
+        cur = get_cached(norm_sc(vid))
+        artist = cur.get('uploader') or ''
+        title = cur.get('title') or ''
+        tracks = []
+        try: tracks.extend(sc_search(artist, limit=20))
+        except: pass
+        try: tracks.extend(sc_search(title.split('-')[0].strip(), limit=10))
+        except: pass
+        seen = {vid}
+        out = []
+        for t in tracks:
+            if not t or t.get('id') in seen: continue
+            seen.add(t['id'])
+            out.append(t)
+            if len(out) >= 30: break
+        import random
+        random.shuffle(out)
+        return jsonify({'seed': cur.get('title'), 'tracks': out})
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
-@app.route('/icon-v3-<int:size>.png')
-def pwa_icon_png_v3(size):
-    return pwa_icon_svg()
+@app.route('/api/trending')
+def trending():
+    try: return jsonify(sc_search(request.args.get('genre', 'electronic'), limit=20))
+    except: return jsonify([])
 
+@app.route('/api/comments/<path:track_id>', methods=['GET', 'POST'])
+def track_comments(track_id):
+    if request.method == 'POST':
+        d = request.json or {}
+        text = (d.get('text') or '').strip()[:500]
+        user = (d.get('user') or 'Ẩn danh')[:20]
+        ts = float(d.get('timestamp', 0))
+        if not text: return jsonify({'error': 'Empty'}), 400
+        TRACK_COMMENTS.setdefault(track_id, []).append({'id': uuid.uuid4().hex[:8], 'user': user, 'text': text, 'timestamp': ts, 'ts': time.time()})
+        if len(TRACK_COMMENTS[track_id]) > 500: TRACK_COMMENTS[track_id] = TRACK_COMMENTS[track_id][-500:]
+        return jsonify({'ok': True})
+    return jsonify(TRACK_COMMENTS.get(track_id, [])[-100:])
+
+# ============ PWA & ICONS ============
 @app.route('/manifest.json')
 def manifest():
     data = {
-        'name': 'Nova Music Universe',
-        'short_name': 'Nova',
-        'description': 'Nghe nhạc SoundCloud Dark Cosmic',
-        'start_url': '/?source=pwa',
-        'scope': '/',
-        'display': 'standalone',
-        'background_color': '#030005',
-        'theme_color': '#a855f7',
-        'icons': [{'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml', 'purpose': 'any maskable'}],
+        "name": "Nova Music",
+        "short_name": "Nova",
+        "description": "Nghe nhạc SoundCloud Premium",
+        "start_url": "https://nova-music-hxyp.onrender.com/?source=pwa",
+        "display": "standalone",
+        "background_color": "#030305",
+        "theme_color": "#030305",
+        "orientation": "portrait",
+        "icons": [
+            {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"},
+            {"src": "/icon-v3-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-v3-512.png", "sizes": "512x512", "type": "image/png"}
+        ]
     }
-    return jsonify(data), 200, {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+    return jsonify(data), 200, {'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache'}
+
+@app.route('/.well-known/assetlinks.json')
+def assetlinks():
+    data = [{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.nova.music",
+        "sha256_cert_fingerprints": ["EC:9B:D9:C2:FC:BA:68:45:A0:C1:F8:AF:E0:15:92:52:F4:66:AA:01:56:66:28:5F:9A:57:E9:D5:6A:26:02:6F"]
+      }
+    }]
+    return jsonify(data), 200, {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
 
 @app.route('/sw.js')
 def sw():
-    s = """const C='nova-v19';
-self.addEventListener('install',e=>{self.skipWaiting()});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
-self.addEventListener('fetch',e=>{
-  const u=new URL(e.request.url);
-  if(u.pathname==='/'||u.pathname.endsWith('.html')||u.pathname==='/sw.js'){
-    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))); return;
-  }
-  if(u.pathname.startsWith('/icon-')||u.pathname==='/icon.svg'){
-    e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;}))); return;
-  }
-  if(u.pathname==='/manifest.json'||u.pathname.startsWith('/static/')){
-    e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request).then(r=>{const cl=r.clone(); caches.open(C).then(cc=>cc.put(e.request,cl)); return r;})));
-  }
-});
-self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting();});
-"""
-    return Response(s, mimetype='application/javascript', headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
+    s = """
+    self.addEventListener('install', (e) => { self.skipWaiting(); });
+    self.addEventListener('activate', (e) => { e.waitUntil(clients.claim()); });
+    self.addEventListener('fetch', (e) => {
+        if (e.request.url.includes('/stream/') || e.request.url.includes('/hls_proxy')) return;
+        e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    });
+    """
+    return Response(s, mimetype='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+@app.route('/icon.svg')
+def pwa_icon_svg():
+    svg = '''<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs><radialGradient id="lsBg" cx="50%" cy="42%" r="65%"><stop offset="0%" stop-color="#3a1060"/><stop offset="55%" stop-color="#0a0520"/><stop offset="100%" stop-color="#02010a"/></radialGradient><filter id="lsGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <circle cx="256" cy="256" r="256" fill="url(#lsBg)"/><circle cx="256" cy="216" r="148" fill="none" stroke="#8b5cf6" stroke-width="10" filter="url(#lsGlow)" opacity="0.85"/>
+      <g fill="#000"><path d="M 158 512 L 168 372 C 173 318, 200 288, 230 276 L 256 296 L 282 276 C 312 288, 339 318, 344 372 L 354 512 Z"/><rect x="234" y="236" width="44" height="66"/><ellipse cx="256" cy="196" rx="66" ry="74"/><path d="M 192 160 L 210 100 L 228 160 Z"/><path d="M 234 150 L 256 60 L 278 150 Z"/><path d="M 284 160 L 302 100 L 320 160 Z"/></g>
+      <g filter="url(#lsGlow)"><path d="M 256 120 L 270 184 L 340 196 L 270 208 L 256 272 L 242 208 L 172 196 L 242 184 Z" fill="#fff"/></g>
+    </svg>'''
+    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=604800'})
+
+@app.route('/icon-v3-<int:size>.png')
+def pwa_icon_png_v3(size): return pwa_icon_svg()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
